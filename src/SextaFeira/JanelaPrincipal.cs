@@ -240,8 +240,8 @@ internal class JanelaPrincipal : Form
             Icone = "⬆",
             Cheio = true,
             Cor = Tema.Verde,
-            Location = new Point(14, 686),
-            Size = new Size(192, 40),
+            Location = new Point(14, 86),
+            Size = new Size(192, 36),
             Visible = false
         };
         btnAtualizacaoLateral.Font = Hud.Titulo(9f, FontStyle.Bold);
@@ -266,7 +266,7 @@ internal class JanelaPrincipal : Form
 
     private void ReorganizarMenu()
     {
-        int y = 120;
+        int y = btnAtualizacaoLateral != null && btnAtualizacaoLateral.Visible ? 132 : 120;
         foreach (var item in Menu)
         {
             if (item.Filhos == null)
@@ -2416,6 +2416,7 @@ internal class JanelaPrincipal : Form
             btnAtualizacaoLateral.Text = $"ATUALIZAR P/ {nova}";
             btnAtualizacaoLateral.Visible = true;
             btnAtualizacaoLateral.BringToFront();
+            ReorganizarMenu();
             AvisoPopup.MostrarSemEsperar("Atualização pronta", $"A versão {nova} da SEXTA-FEIRA já foi baixada. Clica em \"Atualizar\" no menu quando quiser.");
             btnFaixa.Text = "Reiniciar e atualizar";
             btnFaixa.Visible = true;
