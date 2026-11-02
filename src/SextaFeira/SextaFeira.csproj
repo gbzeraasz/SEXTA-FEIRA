@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="icone.ico" />
+    <Content Include="raio.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

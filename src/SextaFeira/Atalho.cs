@@ -65,7 +65,8 @@ internal static class Atalho
             dynamic lnk = shell.CreateShortcut(CaminhoAtalho);
             lnk.TargetPath = conhost;
             lnk.Arguments = $"--headless schtasks.exe /run /tn \"{NomeTarefa}\"";
-            lnk.IconLocation = exe + ",0";
+            string raio = Path.Combine(AppContext.BaseDirectory, "raio.ico");
+            lnk.IconLocation = File.Exists(raio) ? raio + ",0" : exe + ",0";
             lnk.Description = "Otimiza o PC antes de jogar";
             lnk.Save();
         }

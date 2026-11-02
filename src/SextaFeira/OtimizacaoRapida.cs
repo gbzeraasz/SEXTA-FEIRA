@@ -12,7 +12,7 @@ internal static class OtimizacaoRapida
             Mostrar("SEXTA-FEIRA", "Algo deu errado: " + ex.Message, ToolTipIcon.Error);
             return;
         }
-        Mostrar("PC otimizado ✅ Bom jogo!", r.Resumo(), ToolTipIcon.Info);
+        Mostrar("⚡ PC otimizado! Bom jogo", r.Frase(), ToolTipIcon.Info);
     }
 
     private static void Mostrar(string titulo, string texto, ToolTipIcon icone)

@@ -631,6 +631,9 @@ internal class JanelaPrincipal : Form
         PreencherJogos();
         AtualizarAtalho();
 
+        // Atualiza o botão já existente (ícone e caminho novos depois de uma atualização)
+        if (Atalho.Instalado()) await Task.Run(() => Atalho.Instalar());
+
         // Primeira vez: já instala o botão da barra sozinho
         if (!Atalho.Instalado() && !File.Exists(Path.Combine(Sistema.PastaDados, "atalho-oferecido")))
         {
@@ -639,8 +642,8 @@ internal class JanelaPrincipal : Form
             {
                 AtualizarAtalho();
                 MessageBox.Show(
-                    "Criei o botão \"Otimizar PC (SEXTA-FEIRA)\" no Menu Iniciar.\n\n" +
-                    "Pra deixar ele na barra: abre o Iniciar, pesquisa \"Otimizar PC\", clica com o botão direito e escolhe \"Fixar na barra de tarefas\".",
+                    "Criei o botão \"Otimizar PC (SEXTA-FEIRA)\" no Menu Iniciar, com um ícone de raio amarelo ⚡.\n\n" +
+                    "Pra deixar ele na barra: abre o Iniciar, pesquisa \"Otimizar PC\", clica com o botão direito no do RAIO e escolhe \"Fixar na barra de tarefas\".\n\nNa barra é 1 clique só: ele otimiza escondido e só mostra a notificação.",
                     "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }

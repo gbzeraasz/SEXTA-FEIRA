@@ -19,6 +19,15 @@ internal static class Otimizador
         public List<string> Fechados = new();
         public List<string> Feito = new();
 
+        /// <summary>Uma frase só, pra notificação do botão da barra.</summary>
+        public string Frase()
+        {
+            double ram = Math.Max(0, RamLivreDepois - RamLivreAntes);
+            string f = $"Liberei {Sistema.Formatar(DiscoLiberado)} de disco e {Sistema.Formatar(ram)} de RAM";
+            if (Fechados.Count > 0) f += $" e fechei {Fechados.Count} programa(s)";
+            return f + ".";
+        }
+
         public string Resumo()
         {
             var s = $"Disco: {Sistema.Formatar(DiscoLiberado)} limpos\n" +
