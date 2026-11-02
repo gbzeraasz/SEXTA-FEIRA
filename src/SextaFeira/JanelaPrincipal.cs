@@ -26,6 +26,11 @@ internal class JanelaPrincipal : Form
     private readonly BarraUso barRam = new() { Nome = "RAM" };
     private readonly BarraUso barGpu = new() { Nome = "GPU" };
     private readonly ListaHud listaTop = new();
+    private readonly ConsoleHud consoleIa = new();
+    private readonly System.Windows.Forms.Timer timerFala = new() { Interval = 9000 };
+    private int falaIndice;
+    private float ultTemp = -1, ultRam = -1;
+    private string ultTopNome, ultTopTam;
     private readonly ListaHud listaSpecs = new();
     private BotaoHud btnOtimizar;
     private readonly Nucleo nucleo = new();
@@ -106,9 +111,14 @@ internal class JanelaPrincipal : Form
         Shown += async (_, _) =>
         {
             MostrarBoot();
+            string sd = DateTime.Now.Hour < 12 ? "Bom dia" : DateTime.Now.Hour < 18 ? "Boa tarde" : "Boa noite";
+            consoleIa.Dizer($"{sd}. Todos os sistemas online.", true);
+            consoleIa.Dizer("Lendo sensores e verificando o PC...");
+            timerFala.Tick += (_, _) => { if (consoleIa.Livre) consoleIa.Dizer(ProximaFala()); };
+            timerFala.Start();
             await Carregar();
         };
-        FormClosing += (_, _) => { timer.Stop(); timerAtualizacao.Stop(); timerSaude.Stop(); Saude.Salvar(); timerComp.Stop(); ModoCompetitivo.Desligar(); };
+        FormClosing += (_, _) => { timerFala.Stop(); timer.Stop(); timerAtualizacao.Stop(); timerSaude.Stop(); Saude.Salvar(); timerComp.Stop(); ModoCompetitivo.Desligar(); };
     }
 
     private void MostrarBoot()
@@ -432,6 +442,10 @@ internal class JanelaPrincipal : Form
         titulo.Location = new Point(18, 38);
         p.Controls.Add(titulo);
 
+        consoleIa.Location = new Point(340, 42);
+        consoleIa.Size = new Size(600, 34);
+        p.Controls.Add(consoleIa);
+
         // ================= coluna esquerda =================
         var temp = new CardHud { Titulo = "Temperatura · GPU", Location = new Point(20, 96), Size = new Size(270, 196) };
         lblTemp.Font = Hud.Leve(32f);
@@ -562,6 +576,7 @@ internal class JanelaPrincipal : Form
         ocupado = true;
         btnOtimizar.Enabled = false;
         btnOtimizar.Text = "Otimizando...";
+        consoleIa.Dizer("Otimizando o sistema. Isso leva só alguns segundos...", true);
         nucleo.Otimizando = true;
         nucleo.Progresso = 0;
         lblResultado.ForeColor = Tema.Apagado;
@@ -585,6 +600,7 @@ internal class JanelaPrincipal : Form
             nucleo.Pulsar();
             lblResultado.ForeColor = Tema.Texto;
             lblResultado.Text = "✅ " + r.Frase() + "\n" + string.Join("  •  ", r.Feito);
+            consoleIa.Dizer("Otimização concluída. " + r.Frase(), true);
             AtualizarContador();
         }
         catch (Exception ex)
@@ -632,6 +648,11 @@ internal class JanelaPrincipal : Form
             barRam.Valor = l.Ram;
             barGpu.Valor = g.Uso >= 0 ? g.Uso : l.Gpu;
             listaTop.Definir(l.Top.Select(t => (t.Nome, Sistema.Formatar(t.Bytes))));
+            ultTemp = g.Disponivel ? g.Temp : -1;
+            ultRam = l.Ram;
+            var maior = l.Top.FirstOrDefault();
+            ultTopNome = maior.Nome;
+            ultTopTam = maior.Nome != null ? Sistema.Formatar(maior.Bytes) : null;
 
             var faixa = Sensores.Classificar(g.Temp);
             lblTemp.Text = g.Disponivel ? $"{g.Temp:0} °C" : "-- °C";
@@ -645,6 +666,32 @@ internal class JanelaPrincipal : Form
         }
         catch { }
         finally { lendoMonitor = false; }
+    }
+
+    /// <summary>O que o console da SEXTA-FEIRA comenta sozinho, em rodízio, a partir das leituras reais.</summary>
+    private string ProximaFala()
+    {
+        for (int tentativa = 0; tentativa < 5; tentativa++)
+        {
+            switch (falaIndice++ % 5)
+            {
+                case 0 when ultTemp >= 0:
+                    return ultTemp < 60 ? $"GPU a {ultTemp:0} °C. Temperatura tranquila."
+                         : ultTemp < 80 ? $"GPU a {ultTemp:0} °C. Normal pra quem tá jogando."
+                         : $"GPU a {ultTemp:0} °C. Tá quente: vale olhar a ventilação do gabinete.";
+                case 1 when ultRam >= 0:
+                    return ultRam >= 80 ? $"Memória em {ultRam:0}% de uso. Vale otimizar antes de jogar."
+                         : $"Memória em {ultRam:0}% de uso. Tem espaço de sobra pro jogo.";
+                case 2 when nucleo.Nota >= 0:
+                    return nucleo.Nota >= 100 ? "Sistema 100% otimizado. Tudo pronto pra jogar."
+                         : $"Sistema {nucleo.Nota}% otimizado. Os ajustes que faltam estão na Checagem.";
+                case 3 when ultTopNome != null:
+                    return $"{ultTopNome} é o que mais usa memória agora ({ultTopTam}).";
+                case 4:
+                    return "Clica no núcleo ou em Otimizar agora antes de abrir o jogo.";
+            }
+        }
+        return "Monitorando o sistema.";
     }
 
     private async Task AtualizarSaude()
@@ -2439,6 +2486,7 @@ internal class JanelaPrincipal : Form
             btnAtualizacaoLateral.Visible = true;
             btnAtualizacaoLateral.BringToFront();
             ReorganizarMenu();
+            consoleIa.Dizer($"Versão {nova} baixada. Clica em Atualizar no menu quando quiser.", true);
             AvisoPopup.MostrarSemEsperar("Atualização pronta", $"A versão {nova} da SEXTA-FEIRA já foi baixada. Clica em \"Atualizar\" no menu quando quiser.");
             btnFaixa.Text = "Reiniciar e atualizar";
             btnFaixa.Visible = true;

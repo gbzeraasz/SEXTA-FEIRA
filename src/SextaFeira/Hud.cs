@@ -819,3 +819,94 @@ internal class LogoNucleo : Control
         base.Dispose(disposing);
     }
 }
+
+/// <summary>
+/// Console da SEXTA-FEIRA: uma cápsula que vai "digitando" o que ela está fazendo ou percebeu no PC.
+/// </summary>
+internal class ConsoleHud : Control
+{
+    private readonly System.Windows.Forms.Timer anim = new() { Interval = 28 };
+    private readonly Queue<string> fila = new();
+    private string atual = "", alvo = "";
+    private int tick;
+    private int pausa; // ticks parado mostrando a frase inteira
+
+    public ConsoleHud()
+    {
+        SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+        BackColor = Color.Transparent;
+        Font = new Font(Hud.FonteTexto, 9.5f);
+        Size = new Size(600, 34);
+        anim.Tick += (_, _) => Passo();
+        anim.Start();
+    }
+
+    /// <summary>Fala algo agora (passa na frente).</summary>
+    public void Dizer(string frase, bool urgente = false)
+    {
+        if (string.IsNullOrWhiteSpace(frase)) return;
+        if (urgente) { fila.Clear(); alvo = frase; atual = ""; pausa = 0; return; }
+        if (fila.Count < 4 && frase != alvo && !fila.Contains(frase)) fila.Enqueue(frase);
+    }
+
+    public bool Livre => fila.Count == 0 && atual == alvo && pausa > 150;
+
+    private void Passo()
+    {
+        var f = FindForm();
+        if (f == null || f.WindowState == FormWindowState.Minimized || !Visible) return;
+        tick++;
+        if (atual.Length < alvo.Length)
+        {
+            atual = alvo[..Math.Min(alvo.Length, atual.Length + 2)];
+            Invalidate();
+            return;
+        }
+        pausa++;
+        if (pausa > 110 && fila.Count > 0) { alvo = fila.Dequeue(); atual = ""; pausa = 0; }
+        if (tick % 18 == 0) Invalidate(); // cursor piscando
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        var r = new RectangleF(1, 1, Width - 3, Height - 3);
+        using (var caminho = Hud.Redondo(r, r.Height / 2))
+        {
+            using var fundo = new SolidBrush(Color.FromArgb(170, 10, 18, 32));
+            g.FillPath(fundo, caminho);
+            using var borda = new Pen(Hud.Alfa(Hud.Ciano, 60), 1);
+            g.DrawPath(borda, caminho);
+        }
+        // pontinho "vivo" pulsando
+        float pulso = (float)(0.5 + 0.5 * Math.Sin(tick / 8.0));
+        float cy = Height / 2f;
+        using (var aura = new SolidBrush(Hud.Alfa(Hud.Ciano, (int)(40 + 50 * pulso)))) g.FillEllipse(aura, 12, cy - 7, 14, 14);
+        using (var ponto = new SolidBrush(Hud.Ciano)) g.FillEllipse(ponto, 16, cy - 3, 6, 6);
+
+        using var forte = new Font(Hud.FonteForte, Font.Size);
+        var flags = TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine;
+        const string nome = "SEXTA-FEIRA  ›";
+        var tn = TextRenderer.MeasureText(nome, forte, Size.Empty, flags);
+        TextRenderer.DrawText(g, nome, forte, new Rectangle(34, 0, tn.Width + 2, Height), Hud.Ciano, flags);
+
+        int x = 34 + tn.Width + 8;
+        var area = new Rectangle(x, 0, Width - x - 18, Height);
+        TextRenderer.DrawText(g, atual, Font, area, Tema.Texto, flags | TextFormatFlags.EndEllipsis);
+        bool cursorAceso = atual.Length < alvo.Length || (tick / 18) % 2 == 0;
+        if (cursorAceso)
+        {
+            var tt = TextRenderer.MeasureText(g, atual, Font, area.Size, flags);
+            float cx = Math.Min(area.Right - 6, x + tt.Width + 3);
+            using var b = new SolidBrush(Hud.Alfa(Hud.CianoClaro, 220));
+            g.FillRectangle(b, cx, cy - 7, 7, 14);
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) anim.Dispose();
+        base.Dispose(disposing);
+    }
+}
