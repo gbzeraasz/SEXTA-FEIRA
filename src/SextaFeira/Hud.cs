@@ -32,6 +32,28 @@ internal static class Hud
         try { using var f = new FontFamily(nome); return true; } catch { return false; }
     }
 
+    /// <summary>
+    /// Pinta atrás do controle exatamente o que o pai mostra ali (grade holográfica ou cor do card),
+    /// sem usar a transparência do Windows (que deixa "lixo" em listas que rolam).
+    /// </summary>
+    public static void PintarFundoDoPai(Control c, Graphics g)
+    {
+        var pai = c.Parent;
+        if (pai == null) { g.Clear(Fundo); return; }
+        if (pai is PainelHud)
+        {
+            Control raiz = pai;
+            for (var x = pai.Parent; x != null; x = x.Parent)
+                if (x is PainelHud) raiz = x;
+            var d = raiz.PointToClient(c.PointToScreen(Point.Empty));
+            g.DrawImageUnscaled(FundoGrade(raiz.Size), -d.X, -d.Y);
+            return;
+        }
+        var cor = pai.BackColor;
+        if (cor.A < 255) cor = Tema.Card;
+        g.Clear(cor);
+    }
+
     public static Color Alfa(Color c, int a) => Color.FromArgb(Math.Clamp(a, 0, 255), c);
 
     public static Color CorNivel(float v) => v >= 90 ? Tema.Vermelho : v >= 70 ? Tema.Amarelo : Ciano;

@@ -151,28 +151,21 @@ internal class BarraUso : Control
 /// </summary>
 internal class BotaoArredondado : Button
 {
-    private bool hover, apertado, trocando;
+    private bool hover, apertado;
     private Color cor = Tema.Destaque;
 
     public BotaoArredondado()
     {
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
         FlatStyle = FlatStyle.Flat;
         FlatAppearance.BorderSize = 0;
         Cursor = Cursors.Hand;
         UseVisualStyleBackColor = false;
-        trocando = true; BackColor = Color.Transparent; trocando = false;
     }
 
     protected override void OnBackColorChanged(EventArgs e)
     {
-        if (!trocando && BackColor != Color.Transparent)
-        {
-            cor = BackColor;
-            trocando = true;
-            BackColor = Color.Transparent;
-            trocando = false;
-        }
+        cor = BackColor;
         Invalidate();
         base.OnBackColorChanged(e);
     }
@@ -183,10 +176,12 @@ internal class BotaoArredondado : Button
     protected override void OnMouseDown(MouseEventArgs e) { apertado = true; Invalidate(); base.OnMouseDown(e); }
     protected override void OnMouseUp(MouseEventArgs e) { apertado = false; Invalidate(); base.OnMouseUp(e); }
     protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+    protected override void OnPaintBackground(PaintEventArgs e) { }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
+        Hud.PintarFundoDoPai(this, g);
         g.SmoothingMode = SmoothingMode.AntiAlias;
 
         bool vidro = cor == Tema.CardClaro || cor == Tema.Card;
