@@ -526,6 +526,21 @@ internal class JanelaPrincipal : Form
             AtualizarAtalho();
         };
         c1.Controls.Add(btnAtalho);
+        var btnTestar = Tema.Botao("Testar", Tema.CardClaro, 110, 36);
+        btnTestar.Location = new Point(210, 116);
+        btnTestar.Click += (_, _) =>
+        {
+            if (!Atalho.Instalado())
+            {
+                MessageBox.Show("Instala o botão primeiro.", "SEXTA-FEIRA");
+                return;
+            }
+            // Roda exatamente o que o raio da barra roda
+            Sistema.Rodar("schtasks", $"/run /tn \"{Atalho.NomeTarefa}\"");
+            MessageBox.Show("Rodando! Em alguns segundos o aviso \"PC otimizado\" aparece no canto de baixo da tela.\n\nSe não aparecer, me manda o arquivo log.txt (Ferramentas → Abrir pasta de dados).",
+                "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        };
+        c1.Controls.Add(btnTestar);
         p.Controls.Add(c1);
 
         // Desfazer
@@ -579,6 +594,10 @@ internal class JanelaPrincipal : Form
             bAtual.Enabled = true;
         };
         c4.Controls.Add(bAtual);
+        var bPasta = Tema.Botao("Abrir pasta de dados", Tema.CardClaro, 190, 36);
+        bPasta.Location = new Point(210, 116);
+        bPasta.Click += (_, _) => Sistema.Abrir(Sistema.PastaDados);
+        c4.Controls.Add(bPasta);
         p.Controls.Add(c4);
 
         // Programas fechados
