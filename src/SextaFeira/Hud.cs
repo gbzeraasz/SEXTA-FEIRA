@@ -13,12 +13,19 @@ internal static class Hud
     public static readonly Color Painel = Color.FromArgb(205, 11, 17, 30);
     public static readonly Color Linha = Color.FromArgb(70, 0, 209, 255);
 
-    private static FontFamily familiaTitulo;
-    public static FontFamily FamiliaTitulo => familiaTitulo ??= Existe("Bahnschrift") ? new FontFamily("Bahnschrift") : new FontFamily("Segoe UI");
-    public static string FonteMono => Existe("Cascadia Mono") ? "Cascadia Mono" : "Consolas";
+    // Fontes: família Segoe UI (a do próprio Windows), mais limpa e arredondada.
+    private static string Fam(string nome, string reserva = "Segoe UI") => Existe(nome) ? nome : reserva;
+    public static readonly string FonteForte = Fam("Segoe UI Semibold");
+    public static readonly string FonteLeve = Fam("Segoe UI Light");
+    public static readonly string FonteTexto = "Segoe UI";
 
-    public static Font Titulo(float tam, FontStyle s = FontStyle.Regular) => new(FamiliaTitulo, tam, s);
-    public static Font Mono(float tam) => new(FonteMono, tam);
+    /// <summary>Títulos e botões: Bold vira Semibold (fica mais elegante que o negrito cheio).</summary>
+    public static Font Titulo(float tam, FontStyle s = FontStyle.Regular) =>
+        s.HasFlag(FontStyle.Bold) ? new Font(FonteForte, tam, s & ~FontStyle.Bold) : new Font(FonteTexto, tam, s);
+    /// <summary>Números grandes (nota, temperatura): fino e grande, estilo holograma.</summary>
+    public static Font Leve(float tam) => new(FonteLeve, tam);
+    /// <summary>Texto pequeno de apoio (antes era monoespaçado).</summary>
+    public static Font Mono(float tam) => new(FonteTexto, tam + 0.5f);
 
     private static bool Existe(string nome)
     {
@@ -28,6 +35,20 @@ internal static class Hud
     public static Color Alfa(Color c, int a) => Color.FromArgb(Math.Clamp(a, 0, 255), c);
 
     public static Color CorNivel(float v) => v >= 90 ? Tema.Vermelho : v >= 70 ? Tema.Amarelo : Ciano;
+
+    /// <summary>Retângulo com cantos arredondados (float).</summary>
+    public static GraphicsPath Redondo(RectangleF r, float raio)
+    {
+        var p = new GraphicsPath();
+        float d = Math.Min(raio * 2, Math.Min(r.Width, r.Height));
+        if (d <= 1) { p.AddRectangle(r); return p; }
+        p.AddArc(r.X, r.Y, d, d, 180, 90);
+        p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        p.CloseFigure();
+        return p;
+    }
 
     /// <summary>Retângulo com os cantos cortados (estilo HUD).</summary>
     public static GraphicsPath Chanfrado(RectangleF r, float corte)
@@ -77,7 +98,7 @@ internal static class Hud
 
         // hexágonos
         float raio = 22, w = raio * 1.732f, h = raio * 1.5f;
-        using var pen = new Pen(Color.FromArgb(16, 0, 209, 255), 1);
+        using var pen = new Pen(Color.FromArgb(10, 0, 209, 255), 1);
         for (int lin = -1; lin * h < tam.Height + raio; lin++)
             for (int col = -1; col * w < tam.Width + w; col++)
             {
@@ -138,29 +159,38 @@ internal class CardHud : Panel
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         var r = new RectangleF(1, 1, Width - 3, Height - 3);
-        using (var caminho = Hud.Chanfrado(r, 10))
+        using (var caminho = Hud.Redondo(r, 14))
         {
-            using var fundo = new SolidBrush(Hud.Painel);
-            g.FillPath(fundo, caminho);
-            using var borda = new Pen(Hud.Alfa(CorDestaque, 55), 1);
+            // vidro: um pouco mais claro em cima, escurecendo pra baixo
+            using (var fundo = new LinearGradientBrush(r, Color.FromArgb(215, 16, 24, 40), Color.FromArgb(200, 9, 13, 24), 90f))
+                g.FillPath(fundo, caminho);
+            using var borda = new Pen(Hud.Alfa(CorDestaque, 38), 1);
             g.DrawPath(borda, caminho);
         }
-        Hud.Colchetes(g, new RectangleF(4, 4, Width - 9, Height - 9), Hud.Alfa(CorDestaque, 200), 10, 1.6f);
+        // reflexo fino no topo, que some nas pontas
+        using (var reflexo = new LinearGradientBrush(new RectangleF(14, 1, Width - 28, 2), Color.Transparent, Color.Transparent, 0f))
+        {
+            reflexo.InterpolationColors = new ColorBlend
+            {
+                Colors = new[] { Color.Transparent, Hud.Alfa(CorDestaque, 150), Color.Transparent },
+                Positions = new[] { 0f, 0.5f, 1f }
+            };
+            g.FillRectangle(reflexo, 14, 1, Width - 28, 1.5f);
+        }
 
         if (!string.IsNullOrEmpty(Titulo))
         {
-            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-            using var f = Hud.Titulo(8.5f, FontStyle.Bold);
-            using var b = new SolidBrush(Hud.Alfa(CorDestaque, 220));
-            g.FillRectangle(b, 16, 17, 3, 11);
-            g.DrawString(Titulo.ToUpperInvariant(), f, b, 23, 14);
-            using var lin = new Pen(Hud.Alfa(CorDestaque, 40), 1);
-            g.DrawLine(lin, 16, 36, Width - 16, 36);
+            using var f = Hud.Titulo(9.5f, FontStyle.Bold);
+            using (var ponto = new SolidBrush(CorDestaque)) g.FillEllipse(ponto, 18, 19, 6, 6);
+            using (var aura = new SolidBrush(Hud.Alfa(CorDestaque, 50))) g.FillEllipse(aura, 15, 16, 12, 12);
+            TextRenderer.DrawText(g, Titulo, f, new Point(30, 12), Hud.Alfa(Hud.CianoClaro, 235), TextFormatFlags.NoPadding);
+            using var lin = new Pen(Hud.Alfa(CorDestaque, 22), 1);
+            g.DrawLine(lin, 18, 38, Width - 18, 38);
         }
     }
 }
 
-/// <summary>Botão com cantos cortados, brilho no hover e "acender" ao clicar.</summary>
+/// <summary>Botão arredondado com brilho no hover e "acender" ao clicar.</summary>
 internal class BotaoHud : Control
 {
     private bool hover, apertado;
@@ -196,15 +226,26 @@ internal class BotaoHud : Control
         g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         var cor = Enabled ? Cor : Tema.Apagado;
         var r = new RectangleF(1, 1, Width - 3, Height - 3);
-        using var caminho = Hud.Chanfrado(r, Math.Min(12, Height / 3f));
+        var rr = hover && Enabled ? r : new RectangleF(r.X + 1, r.Y + 1, r.Width - 2, r.Height - 2);
+        using var caminho = Hud.Redondo(rr, Math.Min(12, Height / 2f));
 
-        int alfaFundo = Cheio ? (apertado ? 255 : hover ? 235 : 210) : (apertado ? 90 : hover ? 60 : 28);
-        using (var fundo = new SolidBrush(Hud.Alfa(cor, alfaFundo))) g.FillPath(fundo, caminho);
+        if (Cheio)
+        {
+            int a = apertado ? 255 : hover ? 250 : 225;
+            using var fundo = new LinearGradientBrush(rr, Hud.Alfa(ControlPaint.Light(cor, 0.25f), a), Hud.Alfa(ControlPaint.Dark(cor, 0.12f), a), 90f);
+            g.FillPath(fundo, caminho);
+        }
+        else
+        {
+            using var fundo = new SolidBrush(Hud.Alfa(cor, apertado ? 70 : hover ? 40 : 16));
+            g.FillPath(fundo, caminho);
+        }
         if (hover && Enabled)
-            using (var brilho = new Pen(Hud.Alfa(cor, 60), 6)) g.DrawPath(brilho, caminho);
-        using (var borda = new Pen(Hud.Alfa(cor, hover ? 255 : 170), 1.4f)) g.DrawPath(borda, caminho);
+            using (var brilho = new Pen(Hud.Alfa(cor, 45), 5)) g.DrawPath(brilho, caminho);
+        if (!Cheio)
+            using (var borda = new Pen(Hud.Alfa(cor, hover ? 200 : 90), 1.2f)) g.DrawPath(borda, caminho);
 
-        var corTexto = Cheio ? Color.FromArgb(6, 12, 20) : (Enabled ? (hover ? Hud.CianoClaro : ForeColor) : Tema.Apagado);
+        var corTexto = Cheio ? Color.FromArgb(4, 16, 28) : (Enabled ? (hover ? Color.White : ForeColor) : Tema.Apagado);
         string txt = (Icone != null ? Icone + "  " : "") + Text;
         TextRenderer.DrawText(g, txt, Font, Rectangle.Round(r), corTexto,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
@@ -402,8 +443,8 @@ internal class Nucleo : Control
         else if (centroHover) { grande = "⚡"; pequeno = "CLIQUE P/ OTIMIZAR"; }
         else { grande = Nota >= 0 ? $"{Nota}%" : "--"; pequeno = TextoTopo; corGrande = Nota >= 90 ? Tema.Verde : Nota >= 70 ? Hud.CianoClaro : Tema.Amarelo; }
 
-        using (var fg = Hud.Titulo(rc * 0.42f, FontStyle.Bold))
-        using (var fp = Hud.Titulo(Math.Max(7f, rc * 0.1f), FontStyle.Bold))
+        using (var fg = Hud.Leve(rc * 0.44f))
+        using (var fp = Hud.Titulo(Math.Max(7f, rc * 0.095f), FontStyle.Bold))
         {
             var tg = g.MeasureString(grande, fg);
             using var bg = new SolidBrush(corGrande);
@@ -553,5 +594,107 @@ internal class BootHud : Control
     {
         if (disposing) anim.Dispose();
         base.Dispose(disposing);
+    }
+}
+
+/// <summary>Lista "rótulo · valor" alinhada sem precisar de fonte monoespaçada.</summary>
+internal class ListaHud : Control
+{
+    private List<(string rotulo, string valor)> linhas = new();
+
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool ValorADireita { get; set; } = true;   // true: valor colado na direita; false: valor numa coluna fixa
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int ColunaValor { get; set; } = 46;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int AlturaLinha { get; set; } = 24;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Color CorRotulo { get; set; } = Tema.Texto;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Color CorValor { get; set; } = Tema.Apagado;
+
+    public ListaHud()
+    {
+        SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+        BackColor = Color.Transparent;
+        Font = new Font(Hud.FonteTexto, 9f);
+    }
+
+    public void Definir(IEnumerable<(string rotulo, string valor)> l)
+    {
+        linhas = l.ToList();
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        using var forte = new Font(Hud.FonteForte, Font.Size);
+        int y = 0;
+        for (int i = 0; i < linhas.Count; i++)
+        {
+            var (rot, val) = linhas[i];
+            var flags = TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter;
+            if (ValorADireita)
+            {
+                var tv = TextRenderer.MeasureText(val, Font, Size.Empty, TextFormatFlags.NoPadding);
+                TextRenderer.DrawText(g, rot, Font, new Rectangle(0, y, Width - tv.Width - 10, AlturaLinha), CorRotulo, flags);
+                TextRenderer.DrawText(g, val, forte, new Rectangle(Width - tv.Width - 4, y, tv.Width + 4, AlturaLinha), CorValor, flags | TextFormatFlags.Right);
+            }
+            else
+            {
+                TextRenderer.DrawText(g, rot, forte, new Rectangle(0, y, ColunaValor, AlturaLinha), CorValor, flags);
+                TextRenderer.DrawText(g, val, Font, new Rectangle(ColunaValor, y, Width - ColunaValor, AlturaLinha), CorRotulo, flags);
+            }
+            if (i < linhas.Count - 1)
+                using (var p = new Pen(Color.FromArgb(14, 255, 255, 255))) g.DrawLine(p, 0, y + AlturaLinha + 1, Width, y + AlturaLinha + 1);
+            y += AlturaLinha + 3;
+        }
+    }
+}
+
+/// <summary>Item do menu lateral: fundo arredondado e um tracinho de destaque quando selecionado.</summary>
+internal class BotaoMenuHud : Button
+{
+    private bool hover;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public bool Selecionado { get; set; }
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int Recuo { get; set; } = 14;
+
+    public BotaoMenuHud()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        FlatStyle = FlatStyle.Flat;
+        FlatAppearance.BorderSize = 0;
+        Cursor = Cursors.Hand;
+    }
+
+    protected override bool ShowFocusCues => false;
+    protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.Clear(Parent?.BackColor ?? Tema.Lateral);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        var r = new RectangleF(2, 2, Width - 5, Height - 5);
+        if (Selecionado || hover)
+        {
+            using var caminho = Hud.Redondo(r, 10);
+            using var fundo = Selecionado
+                ? (Brush)new LinearGradientBrush(r, Hud.Alfa(Hud.Ciano, 40), Hud.Alfa(Hud.Ciano, 8), 0f)
+                : new SolidBrush(Color.FromArgb(10, 255, 255, 255));
+            g.FillPath(fundo, caminho);
+        }
+        if (Selecionado)
+            using (var traco = Hud.Redondo(new RectangleF(2, Height / 2f - 9, 3.5f, 18), 2))
+            using (var b = new SolidBrush(Hud.Ciano))
+                g.FillPath(b, traco);
+
+        var cor = Selecionado ? Color.White : hover ? Tema.Texto : ForeColor;
+        TextRenderer.DrawText(g, Text, Font, new Rectangle(Recuo, 0, Width - Recuo - 4, Height), cor,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
     }
 }

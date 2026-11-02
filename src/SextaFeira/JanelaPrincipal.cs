@@ -22,11 +22,11 @@ internal class JanelaPrincipal : Form
     private const int LarguraUtil = 900;
 
     // ---------- início ----------
-    private readonly Label lblSpecs = Tema.Rotulo("Lendo o teu PC...", Tema.Pequena, Tema.Apagado);
     private readonly BarraUso barCpu = new() { Nome = "CPU" };
     private readonly BarraUso barRam = new() { Nome = "RAM" };
     private readonly BarraUso barGpu = new() { Nome = "GPU" };
-    private readonly Label lblTop = Tema.Rotulo("...", Tema.Mono, Tema.Texto);
+    private readonly ListaHud listaTop = new();
+    private readonly ListaHud listaSpecs = new();
     private BotaoHud btnOtimizar;
     private readonly Nucleo nucleo = new();
     private readonly Label lblLegenda = new();
@@ -173,21 +173,16 @@ internal class JanelaPrincipal : Form
 
     private Button BotaoMenu(string texto, string tag, bool filho)
     {
-        var b = new Button
+        var b = new BotaoMenuHud
         {
             Text = texto,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font = filho ? Tema.Normal : Tema.Negrito,
+            Font = filho ? new Font(Hud.FonteTexto, 9.5f) : new Font(Hud.FonteForte, 10.5f),
             ForeColor = Tema.Apagado,
             BackColor = Tema.Lateral,
-            FlatStyle = FlatStyle.Flat,
-            Size = new Size(filho ? 180 : 196, filho ? 36 : 44),
-            Padding = new Padding(filho ? 30 : 12, 0, 0, 0),
-            Cursor = Cursors.Hand,
+            Size = new Size(filho ? 180 : 196, filho ? 34 : 42),
+            Recuo = filho ? 28 : 14,
             Tag = tag
         };
-        b.FlatAppearance.BorderSize = 0;
-        b.FlatAppearance.MouseOverBackColor = Tema.Card;
         lateral.Controls.Add(b);
         return b;
     }
@@ -198,7 +193,7 @@ internal class JanelaPrincipal : Form
         lateral.Width = 220;
         lateral.BackColor = Tema.Lateral;
 
-        var logo = Tema.Rotulo("SEXTA-FEIRA", new Font("Segoe UI", 17f, FontStyle.Bold), Tema.Destaque);
+        var logo = Tema.Rotulo("SEXTA-FEIRA", new Font(Hud.FonteForte, 17f), Tema.Destaque);
         logo.Location = new Point(22, 26);
         lateral.Controls.Add(logo);
         var sub = Tema.Rotulo("otimizador de jogos", Tema.Pequena, Tema.Apagado);
@@ -236,7 +231,7 @@ internal class JanelaPrincipal : Form
         // selo de "atualização pronta" no menu (aparece só quando tem versão nova)
         btnAtualizacaoLateral = new BotaoHud
         {
-            Text = "ATUALIZAÇÃO PRONTA",
+            Text = "Atualização pronta",
             Icone = "⬆",
             Cheio = true,
             Cor = Tema.Verde,
@@ -280,7 +275,8 @@ internal class JanelaPrincipal : Form
             var g = grupos[item.Chave];
             g.Location = new Point(12, y);
             g.Text = item.Texto + (aberto ? "   ▾" : "   ▸");
-            g.ForeColor = ativo ? Tema.Destaque : Tema.Apagado;
+            g.ForeColor = ativo ? Hud.CianoClaro : Tema.Apagado;
+            g.Invalidate();
             y += 48;
             foreach (var (chave, _) in item.Filhos)
             {
@@ -300,8 +296,9 @@ internal class JanelaPrincipal : Form
         foreach (var (k, p) in paginas) p.Visible = k == chave;
         foreach (var (k, b) in abas)
         {
-            b.BackColor = k == chave ? Tema.Card : Tema.Lateral;
-            b.ForeColor = k == chave ? Tema.Destaque : Tema.Apagado;
+            if (b is BotaoMenuHud m) m.Selecionado = k == chave;
+            b.ForeColor = Tema.Apagado;
+            b.Invalidate();
         }
         ReorganizarMenu();
     }
@@ -398,8 +395,8 @@ internal class JanelaPrincipal : Form
         // Tela inicial no estilo HUD holográfico: núcleo no centro, painéis dos lados
         var p = new PainelHud { Dock = DockStyle.Fill };
 
-        string Saudacao() => DateTime.Now.Hour < 12 ? "BOM DIA" : DateTime.Now.Hour < 18 ? "BOA TARDE" : "BOA NOITE";
-        lblSaudacao.Text = $"{Saudacao()}  •  SISTEMA ONLINE";
+        string Saudacao() => DateTime.Now.Hour < 12 ? "Bom dia" : DateTime.Now.Hour < 18 ? "Boa tarde" : "Boa noite";
+        lblSaudacao.Text = $"{Saudacao()}  ·  sistema online";
         lblSaudacao.Font = Hud.Titulo(9f, FontStyle.Bold);
         lblSaudacao.ForeColor = Hud.Ciano;
         lblSaudacao.BackColor = Color.Transparent;
@@ -407,13 +404,13 @@ internal class JanelaPrincipal : Form
         lblSaudacao.Location = new Point(22, 20);
         p.Controls.Add(lblSaudacao);
 
-        var titulo = RotuloHud("SEXTA-FEIRA", Hud.Titulo(24f, FontStyle.Bold), Tema.Texto);
+        var titulo = RotuloHud("SEXTA-FEIRA", Hud.Titulo(24f, FontStyle.Bold), Color.White);
         titulo.Location = new Point(18, 38);
         p.Controls.Add(titulo);
 
         // ================= coluna esquerda =================
         var temp = new CardHud { Titulo = "Temperatura · GPU", Location = new Point(20, 96), Size = new Size(270, 196) };
-        lblTemp.Font = Hud.Titulo(30f, FontStyle.Bold);
+        lblTemp.Font = Hud.Leve(32f);
         lblTemp.BackColor = Color.Transparent;
         lblTemp.Location = new Point(14, 44);
         temp.Controls.Add(lblTemp);
@@ -442,12 +439,14 @@ internal class JanelaPrincipal : Form
         p.Controls.Add(saude);
 
         var sistema = new CardHud { Titulo = "Hardware", Location = new Point(20, 564), Size = new Size(270, 176) };
-        lblSpecs.BackColor = Color.Transparent;
-        lblSpecs.Font = Hud.Mono(8.5f);
-        lblSpecs.ForeColor = Tema.Texto;
-        lblSpecs.Location = new Point(18, 46);
-        lblSpecs.MaximumSize = new Size(240, 0);
-        sistema.Controls.Add(lblSpecs);
+        listaSpecs.Location = new Point(18, 48);
+        listaSpecs.Size = new Size(236, 120);
+        listaSpecs.ValorADireita = false;
+        listaSpecs.ColunaValor = 44;
+        listaSpecs.AlturaLinha = 25;
+        listaSpecs.CorValor = Hud.Ciano;
+        listaSpecs.Definir(new[] { ("", "Lendo o teu PC...") });
+        sistema.Controls.Add(listaSpecs);
         p.Controls.Add(sistema);
 
         // ================= centro: núcleo =================
@@ -466,7 +465,7 @@ internal class JanelaPrincipal : Form
         lblLegenda.Text = "CPU --  •  RAM --  •  GPU --";
         p.Controls.Add(lblLegenda);
 
-        btnOtimizar = new BotaoHud { Text = "OTIMIZAR AGORA", Icone = "⚡", Cheio = true, Location = new Point(330, 474), Size = new Size(300, 52) };
+        btnOtimizar = new BotaoHud { Text = "Otimizar agora", Icone = "⚡", Cheio = true, Location = new Point(330, 474), Size = new Size(300, 52) };
         btnOtimizar.Font = Hud.Titulo(13f, FontStyle.Bold);
         btnOtimizar.Click += async (_, _) => await Otimizar();
         p.Controls.Add(btnOtimizar);
@@ -501,27 +500,25 @@ internal class JanelaPrincipal : Form
         lblNotaTxt.Location = new Point(18, 46);
         lblNotaTxt.MaximumSize = new Size(236, 0);
         status.Controls.Add(lblNotaTxt);
-        var verFalta = new BotaoHud { Text = "VER O QUE FALTA", Location = new Point(18, 104), Size = new Size(170, 32) };
+        var verFalta = new BotaoHud { Text = "Ver o que falta", Location = new Point(18, 104), Size = new Size(170, 32) };
         verFalta.Font = Hud.Titulo(8.5f, FontStyle.Bold);
         verFalta.Click += (_, _) => Mostrar("checagem");
         status.Controls.Add(verFalta);
         p.Controls.Add(status);
 
         var procs = new CardHud { Titulo = "Processos · RAM", Location = new Point(670, 258), Size = new Size(270, 230) };
-        lblTop.BackColor = Color.Transparent;
-        lblTop.Font = Hud.Mono(8f);
-        lblTop.Location = new Point(16, 46);
-        lblTop.AutoSize = false;
-        lblTop.Size = new Size(244, 176);
-        procs.Controls.Add(lblTop);
+        listaTop.Location = new Point(18, 48);
+        listaTop.Size = new Size(234, 176);
+        listaTop.AlturaLinha = 23;
+        procs.Controls.Add(listaTop);
         p.Controls.Add(procs);
 
         var atalhos = new CardHud { Titulo = "Acesso rápido", Location = new Point(670, 500), Size = new Size(270, 240) };
         int y = 48;
         foreach (var (txt, icone, destino) in new[]
                  {
-                     ("MODO COMPETITIVO", "🏆", "competitivo"), ("LIMPEZA 1 CLIQUE", "🧹", "limpeza"),
-                     ("INTERNET", "🌐", "internet"), ("BENCHMARK", "📊", "benchmark")
+                     ("Modo competitivo", "🏆", "competitivo"), ("Limpeza 1 clique", "🧹", "limpeza"),
+                     ("Internet", "🌐", "internet"), ("Benchmark", "📊", "benchmark")
                  })
         {
             var b = new BotaoHud { Text = txt, Icone = icone, Location = new Point(18, y), Size = new Size(234, 38) };
@@ -540,7 +537,7 @@ internal class JanelaPrincipal : Form
         if (ocupado) return;
         ocupado = true;
         btnOtimizar.Enabled = false;
-        btnOtimizar.Text = "OTIMIZANDO...";
+        btnOtimizar.Text = "Otimizando...";
         nucleo.Otimizando = true;
         nucleo.Progresso = 0;
         lblResultado.ForeColor = Tema.Apagado;
@@ -573,7 +570,7 @@ internal class JanelaPrincipal : Form
         }
         finally
         {
-            btnOtimizar.Text = "OTIMIZAR AGORA";
+            btnOtimizar.Text = "Otimizar agora";
             btnOtimizar.Enabled = true;
             nucleo.Otimizando = false;
             ocupado = false;
@@ -610,11 +607,7 @@ internal class JanelaPrincipal : Form
             barCpu.Valor = l.Cpu;
             barRam.Valor = l.Ram;
             barGpu.Valor = g.Uso >= 0 ? g.Uso : l.Gpu;
-            lblTop.Text = string.Join("\n", l.Top.Select(t =>
-            {
-                string nome = t.Nome.Length > 26 ? t.Nome[..26] : t.Nome;
-                return $"{nome,-28}{Sistema.Formatar(t.Bytes),10}";
-            }));
+            listaTop.Definir(l.Top.Select(t => (t.Nome, Sistema.Formatar(t.Bytes))));
 
             var faixa = Sensores.Classificar(g.Temp);
             lblTemp.Text = g.Disponivel ? $"{g.Temp:0} °C" : "-- °C";
@@ -2344,7 +2337,11 @@ internal class JanelaPrincipal : Form
         timerSaude.Start();
 
         pc = await Task.Run(() => InfoPC.Ler());
-        lblSpecs.Text = $"CPU  {pc.Cpu}\n\nGPU  {pc.Gpu}\n\nRAM  {pc.RamGB} GB · {pc.Pentes}x · {pc.RamMHz} MHz\n\nOS   {pc.Windows}";
+        listaSpecs.Definir(new[]
+        {
+            ("CPU", pc.Cpu), ("GPU", pc.Gpu),
+            ("RAM", $"{pc.RamGB} GB · {pc.Pentes}x · {pc.RamMHz} MHz"), ("OS", pc.Windows)
+        });
 
         jogos = await Task.Run(() => Jogos.Detectar());
         nivel = ConfigsCompetitivas.Nivel(pc.Gpu);
@@ -2413,7 +2410,7 @@ internal class JanelaPrincipal : Form
 
             atualizacaoBaixada = true;
             lblFaixa.Text = $"✅ Versão {nova} pronta pra instalar!";
-            btnAtualizacaoLateral.Text = $"ATUALIZAR P/ {nova}";
+            btnAtualizacaoLateral.Text = $"Atualizar p/ {nova}";
             btnAtualizacaoLateral.Visible = true;
             btnAtualizacaoLateral.BringToFront();
             ReorganizarMenu();
