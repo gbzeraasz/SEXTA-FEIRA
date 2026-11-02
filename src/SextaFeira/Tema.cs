@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing.Drawing2D;
 
 namespace SextaFeira;
@@ -94,6 +95,7 @@ internal static class Tema
 internal class BarraUso : Control
 {
     private float valor = -1;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public string Nome { get; set; } = "";
 
     public BarraUso()
@@ -103,6 +105,7 @@ internal class BarraUso : Control
         BackColor = Tema.Card;
     }
 
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public float Valor
     {
         get => valor;
