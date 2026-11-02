@@ -63,7 +63,8 @@ internal class JanelaPrincipal : Form
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 2000 };
     // Procura atualização de novo a cada 30 minutos enquanto o app estiver aberto
     private readonly System.Windows.Forms.Timer timerSaude = new() { Interval = 5 * 60 * 1000 };
-    private readonly System.Windows.Forms.Timer timerAtualizacao = new() { Interval = 30 * 60 * 1000 };
+    private readonly System.Windows.Forms.Timer timerAtualizacao = new() { Interval = 5 * 60 * 1000 };
+    private BotaoHud btnAtualizacaoLateral;
 
     public JanelaPrincipal()
     {
@@ -231,6 +232,31 @@ internal class JanelaPrincipal : Form
                 }
             }
         }
+
+        // selo de "atualização pronta" no menu (aparece só quando tem versão nova)
+        btnAtualizacaoLateral = new BotaoHud
+        {
+            Text = "ATUALIZAÇÃO PRONTA",
+            Icone = "⬆",
+            Cheio = true,
+            Cor = Tema.Verde,
+            Location = new Point(14, 686),
+            Size = new Size(192, 40),
+            Visible = false
+        };
+        btnAtualizacaoLateral.Font = Hud.Titulo(9f, FontStyle.Bold);
+        btnAtualizacaoLateral.Click += async (_, _) => await InstalarAtualizacao();
+        lateral.Controls.Add(btnAtualizacaoLateral);
+        var piscar = new System.Windows.Forms.Timer { Interval = 700 };
+        bool aceso = true;
+        piscar.Tick += (_, _) =>
+        {
+            if (!btnAtualizacaoLateral.Visible) return;
+            aceso = !aceso;
+            btnAtualizacaoLateral.Cor = aceso ? Tema.Verde : ControlPaint.Dark(Tema.Verde, 0.25f);
+            btnAtualizacaoLateral.Invalidate();
+        };
+        piscar.Start();
 
         lblVersao.Location = new Point(22, 740);
         lblVersao.MaximumSize = new Size(190, 0);
@@ -2387,6 +2413,10 @@ internal class JanelaPrincipal : Form
 
             atualizacaoBaixada = true;
             lblFaixa.Text = $"✅ Versão {nova} pronta pra instalar!";
+            btnAtualizacaoLateral.Text = $"ATUALIZAR P/ {nova}";
+            btnAtualizacaoLateral.Visible = true;
+            btnAtualizacaoLateral.BringToFront();
+            AvisoPopup.MostrarSemEsperar("Atualização pronta", $"A versão {nova} da SEXTA-FEIRA já foi baixada. Clica em \"Atualizar\" no menu quando quiser.");
             btnFaixa.Text = "Reiniciar e atualizar";
             btnFaixa.Visible = true;
             btnFaixa.Enabled = true;

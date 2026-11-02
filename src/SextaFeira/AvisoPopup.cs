@@ -111,6 +111,14 @@ internal class AvisoPopup : Form
         }
     }
 
+    /// <summary>Mostra o aviso sem travar (pra usar com o app aberto).</summary>
+    public static void MostrarSemEsperar(string titulo, string texto)
+    {
+        var aviso = new AvisoPopup(titulo, texto);
+        aviso.FormClosed += (_, _) => aviso.Dispose();
+        aviso.Show();
+    }
+
     /// <summary>Mostra o aviso e espera ele sumir.</summary>
     public static void Mostrar(string titulo, string texto, bool erro = false)
     {
