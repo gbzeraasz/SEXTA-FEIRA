@@ -358,6 +358,24 @@ internal static class Limpeza
             },
             new()
             {
+                Id = "mouse", Nome = "Desligar aceleração do mouse", Icone = "🖱", Categoria = "Desempenho", Padrao = true, EhAcao = true,
+                Descricao = "'Aumentar precisão do ponteiro' desligado: o mesmo movimento sempre move a mira o mesmo tanto.",
+                Executar = () => 0
+            },
+            new()
+            {
+                Id = "usb", Nome = "Suspensão seletiva de USB desligada", Icone = "🔌", Categoria = "Desempenho", Padrao = true, EhAcao = true,
+                Descricao = "Impede o Windows de 'adormecer' mouse, teclado e headset USB pra economizar energia.",
+                Executar = () => 0
+            },
+            new()
+            {
+                Id = "throttling", Nome = "Power Throttling desligado", Icone = "🚀", Categoria = "Desempenho", Padrao = true, EhAcao = true,
+                Descricao = "Impede o Windows de segurar o processador em programas que ele acha que são 'de fundo'.",
+                Executar = () => 0
+            },
+            new()
+            {
                 Id = "ram", Nome = "Liberar RAM em espera", Icone = "🧠", Categoria = "Desempenho", Padrao = true, EhAcao = true,
                 Descricao = "Esvazia o cache de memória do Windows. Ajuda em PCs com 16 GB ou menos.",
                 Executar = () => 0

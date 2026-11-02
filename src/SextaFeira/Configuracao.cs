@@ -8,6 +8,9 @@ internal class Configuracao
     public List<string> ProgramasParaFechar { get; set; } = Otimizador.ProgramasDeFundo.ToList();
     public bool AtualizarAutomaticamente { get; set; } = true;
 
+    /// <summary>Modo Competitivo: limpa a RAM em espera sozinho durante a partida quando a RAM livre fica baixa.</summary>
+    public bool RamContinua { get; set; } = true;
+
     /// <summary>O que o botão OTIMIZAR / raio da barra faz (ids da aba Limpeza 1 clique). null = padrão.</summary>
     public List<string> UmClique { get; set; }
 

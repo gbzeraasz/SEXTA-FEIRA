@@ -23,6 +23,8 @@ internal static class Backup
         public List<ItemReg> Registro { get; set; } = new();
         public string PlanoEnergia { get; set; }
         public Dictionary<string, string> Arquivos { get; set; } = new();
+        /// <summary>Comandos que desfazem ajustes que não são de registro (id → [programa, argumentos]).</summary>
+        public Dictionary<string, string[]> Comandos { get; set; } = new();
         public DateTime Criado { get; set; } = DateTime.Now;
     }
 
@@ -47,7 +49,7 @@ internal static class Backup
     public static bool TemBackup()
     {
         var d = Carregar();
-        return d.Registro.Count > 0 || d.PlanoEnergia != null || d.Arquivos.Count > 0;
+        return d.Registro.Count > 0 || d.PlanoEnergia != null || d.Arquivos.Count > 0 || d.Comandos.Count > 0;
     }
 
     public static void GuardarReg(string caminho, string nome)
@@ -83,6 +85,18 @@ internal static class Backup
             var d = Carregar();
             if (d.PlanoEnergia != null) return;
             d.PlanoEnergia = guid;
+            Salvar(d);
+        }
+    }
+
+    /// <summary>Guarda o comando que desfaz um ajuste (só a primeira vez, pra voltar ao original).</summary>
+    public static void GuardarComando(string id, string programa, string argumentos)
+    {
+        lock (trava)
+        {
+            var d = Carregar();
+            if (d.Comandos.ContainsKey(id)) return;
+            d.Comandos[id] = new[] { programa, argumentos };
             Salvar(d);
         }
     }
@@ -139,6 +153,11 @@ internal static class Backup
             {
                 Sistema.Rodar("powercfg", "/setactive " + d.PlanoEnergia);
                 n++;
+            }
+
+            foreach (var c in d.Comandos.Values)
+            {
+                try { Sistema.Rodar(c[0], c[1], 60000); n++; } catch { }
             }
 
             foreach (var a in d.Arquivos)

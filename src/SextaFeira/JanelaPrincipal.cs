@@ -91,6 +91,7 @@ internal class JanelaPrincipal : Form
         paginas["limpeza"] = MontarLimpeza();
         paginas["benchmark"] = MontarBenchmark();
         paginas["pros"] = MontarPros();
+        paginas["reparos"] = MontarReparos();
         paginas["restauracao"] = MontarRestauracao();
         paginas["ferramentas"] = MontarFerramentas();
         foreach (var p in paginas.Values) conteudo.Controls.Add(p);
@@ -133,7 +134,7 @@ internal class JanelaPrincipal : Form
     {
         new("inicio", "⚡  Início"),
         new("limpeza", "🧹  Limpeza 1 clique"),
-        new("g-checagem", "🩺  Checagem", new[] { ("checagem", "Checagem do PC"), ("benchmark", "Benchmark"), ("restauracao", "Ponto de restauração") }),
+        new("g-checagem", "🩺  Checagem", new[] { ("checagem", "Checagem do PC"), ("benchmark", "Benchmark"), ("reparos", "Reparos"), ("restauracao", "Ponto de restauração") }),
         new("g-biblioteca", "📚  Biblioteca", new[] { ("jogos", "Meus jogos"), ("pros", "Mira dos pros"), ("competitivo", "Competitivo") }),
         new("ferramentas", "🛠  Ferramentas"),
     };
@@ -731,6 +732,9 @@ internal class JanelaPrincipal : Form
                         return f.Count == 0 ? "✓ nada aberto" : $"✓ {f.Count} fechado(s)";
                     case "ajustesjogo": Otimizador.AjustesDeJogo(); return "✓ aplicado";
                     case "energia": return Otimizador.AtivarAltoDesempenho() ? "✓ ativo" : "não deu";
+                    case "mouse": Ajustes.DesligarAceleracaoMouse(); return "✓ desligada";
+                    case "usb": Ajustes.DesligarUsbSeletiva(); return "✓ desligada";
+                    case "throttling": Ajustes.DesligarThrottling(); return "✓ desligado";
                     case "ram":
                         double antes = Otimizador.RamEmEspera();
                         Otimizador.LiberarRamEmEspera();
@@ -1058,7 +1062,7 @@ internal class JanelaPrincipal : Form
         var p = NovaPagina("Modo Competitivo",
             "Liga antes da partida e deixa a SEXTA-FEIRA aberta (pode minimizar). Desliga quando terminar de jogar.");
 
-        var card = Card(30, 104, 900, 270);
+        var card = Card(30, 104, 900, 300);
         btnCompetitivo = Tema.Botao("🏆  LIGAR MODO COMPETITIVO", Tema.Destaque, 340, 64);
         btnCompetitivo.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
         btnCompetitivo.Location = new Point(24, 24);
@@ -1078,13 +1082,27 @@ internal class JanelaPrincipal : Form
         oQueFaz.MaximumSize = new Size(850, 0);
         card.Controls.Add(oQueFaz);
 
+        var chkRam = new CheckBox
+        {
+            Text = "Limpar a RAM em espera sozinho durante a partida (quando a RAM livre ficar abaixo de 1 GB)",
+            Checked = Configuracao.Atual.RamContinua,
+            Location = new Point(24, 268),
+            AutoSize = true,
+            ForeColor = Tema.Texto,
+            Font = Tema.Pequena,
+            BackColor = Tema.Card,
+            Cursor = Cursors.Hand
+        };
+        chkRam.CheckedChanged += (_, _) => { Configuracao.Atual.RamContinua = chkRam.Checked; Configuracao.Atual.Salvar(); };
+        card.Controls.Add(chkRam);
+
         lblCompFeito.Location = new Point(24, 150);
         lblCompFeito.MaximumSize = new Size(850, 0);
         card.Controls.Add(lblCompFeito);
         p.Controls.Add(card);
 
         // Conexão
-        var net = Card(30, 390, 900, 230, "Estabilidade da tua internet");
+        var net = Card(30, 420, 900, 230, "Estabilidade da tua internet");
         lblConexaoNota.Location = new Point(18, 40);
         net.Controls.Add(lblConexaoNota);
         lblConexao.Location = new Point(20, 84);
@@ -1160,9 +1178,10 @@ internal class JanelaPrincipal : Form
         btnCompetitivo.ForeColor = on ? Color.White : Color.FromArgb(10, 12, 20);
         lblCompStatus.Text = on ? "🟢 Ligado" : "Desligado";
         lblCompStatus.ForeColor = on ? Tema.Verde : Tema.Apagado;
-        lblCompJogo.Text = !on ? "" : ModoCompetitivo.JogoAtual != null
+        lblCompJogo.Text = !on ? "" : (ModoCompetitivo.JogoAtual != null
             ? $"Jogo detectado: {ModoCompetitivo.JogoAtual} (com prioridade)  •  ligado desde {ModoCompetitivo.LigadoEm:HH:mm}"
-            : $"Esperando tu abrir o jogo...  •  ligado desde {ModoCompetitivo.LigadoEm:HH:mm}";
+            : $"Esperando tu abrir o jogo...  •  ligado desde {ModoCompetitivo.LigadoEm:HH:mm}") +
+            (ModoCompetitivo.LimpezasRam > 0 ? $"  •  RAM limpa {ModoCompetitivo.LimpezasRam}x ({Sistema.Formatar(ModoCompetitivo.RamLiberadaTotal)})" : "");
         abas["competitivo"].Text = on ? "Competitivo  🟢" : "Competitivo";
     }
 
@@ -1581,6 +1600,99 @@ internal class JanelaPrincipal : Form
         ps.Click += (_, _) => Sistema.Abrir(url);
         c.Controls.Add(ps);
         return c;
+    }
+
+    // =====================================================================
+    //  Página: Reparos
+    // =====================================================================
+
+    private bool reparando;
+
+    private Panel MontarReparos()
+    {
+        var p = NovaPagina("Reparos", "Consertos rápidos com as ferramentas oficiais do Windows. Clica no problema que tu tá tendo.");
+        var lista = new Panel { Location = new Point(30, 100), Size = new Size(904, 640), BackColor = Tema.Fundo, AutoScroll = true };
+        Tema.Escurecer(lista);
+        p.Controls.Add(lista);
+
+        int i = 0;
+        foreach (var r in Reparos.Lista)
+        {
+            int col = i % 2, lin = i / 2;
+            var c = new Panel { Location = new Point(col * 446, lin * 118), Size = new Size(434, 106), BackColor = Tema.Card };
+
+            var ic = Tema.Rotulo(r.Icone, new Font("Segoe UI Emoji", 16f), Tema.Texto);
+            ic.Location = new Point(14, 12);
+            c.Controls.Add(ic);
+
+            var nome = Tema.Rotulo(r.Nome, Tema.Negrito, Tema.Texto);
+            nome.Location = new Point(56, 12);
+            c.Controls.Add(nome);
+
+            var desc = Tema.Rotulo(r.Descricao, Tema.Pequena, Tema.Apagado);
+            desc.Location = new Point(56, 36);
+            desc.AutoSize = false;
+            desc.Size = new Size(366, 34);
+            desc.AutoEllipsis = true;
+            new ToolTip().SetToolTip(desc, r.Descricao);
+            c.Controls.Add(desc);
+
+            string tags = "⏱ " + r.Duracao + (r.PedeReinicio ? "  •  pede reiniciar" : "");
+            var tg = Tema.Rotulo(tags, Tema.Pequena, r.Revisao ? Tema.Amarelo : Tema.Apagado);
+            tg.Location = new Point(56, 76);
+            c.Controls.Add(tg);
+
+            var b = Tema.Botao("Reparar", Tema.CardClaro, 100, 30);
+            b.Font = Tema.Pequena;
+            b.Location = new Point(320, 70);
+            var reparo = r;
+            b.Click += async (_, _) => await RodarReparo(reparo, b);
+            c.Controls.Add(b);
+
+            lista.Controls.Add(c);
+            i++;
+        }
+        return p;
+    }
+
+    private async Task RodarReparo(Reparo r, Button b)
+    {
+        if (reparando)
+        {
+            MessageBox.Show("Espera o reparo atual terminar.", "SEXTA-FEIRA");
+            return;
+        }
+        if (r.Revisao && MessageBox.Show($"{r.Nome}\n\n{r.Aviso ?? r.Descricao}\n\nContinuar?", "SEXTA-FEIRA",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+
+        reparando = true;
+        b.Enabled = false;
+        b.Text = "Reparando...";
+        try
+        {
+            string msg = await Task.Run(() => r.Executar());
+            Atualizador.Log($"Reparo '{r.Id}': {msg}");
+            b.Text = "✓ Feito";
+            b.BackColor = Tema.Verde;
+            b.ForeColor = Color.FromArgb(10, 12, 20);
+            if (r.PedeReinicio)
+            {
+                if (MessageBox.Show(msg + "\n\nReiniciar o PC agora?", "SEXTA-FEIRA", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    Sistema.Rodar("shutdown", "/r /t 5");
+            }
+            else MessageBox.Show(msg, "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            b.Text = "Reparar";
+            Atualizador.Log($"ERRO no reparo '{r.Id}': {ex}");
+            MessageBox.Show("Não deu certo: " + ex.Message, "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            b.Enabled = true;
+            reparando = false;
+        }
     }
 
     // =====================================================================

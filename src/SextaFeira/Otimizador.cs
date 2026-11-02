@@ -90,6 +90,10 @@ internal static class Otimizador
             if (AtivarAltoDesempenho()) r.Feito.Add("Plano Alto Desempenho");
         }
 
+        if (cfg.Marcado("mouse")) { try { Ajustes.DesligarAceleracaoMouse(); r.Feito.Add("Aceleração do mouse desligada"); } catch { } }
+        if (cfg.Marcado("usb")) { try { P(82, "Ajustando USB..."); Ajustes.DesligarUsbSeletiva(); r.Feito.Add("Suspensão de USB desligada"); } catch { } }
+        if (cfg.Marcado("throttling")) { try { Ajustes.DesligarThrottling(); r.Feito.Add("Power Throttling desligado"); } catch { } }
+
         r.RamLivreDepois = RamLivre();
         if (cfg.Marcado("ram"))
         {

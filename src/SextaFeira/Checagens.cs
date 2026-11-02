@@ -106,6 +106,52 @@ internal static class Checagens
             }
         });
 
+        // ---------- Latência e consistência ----------
+        bool acel = Ajustes.AceleracaoMouseLigada();
+        l.Add(new Checagem
+        {
+            Nome = "Aceleração do mouse",
+            Status = acel ? Status.Alerta : Status.Ok,
+            Detalhe = acel ? "Ligada: a mira anda diferente dependendo da velocidade do teu movimento. Pro competitivo, desliga." : "Desligada",
+            Botao = "Desligar",
+            Automatica = true,
+            Acao = () => { Ajustes.DesligarAceleracaoMouse(); return null; }
+        });
+
+        int usb = Ajustes.UsbSeletivaAtual();
+        l.Add(new Checagem
+        {
+            Nome = "Suspensão seletiva de USB",
+            Status = usb == 0 ? Status.Ok : usb < 0 ? Status.Info : Status.Alerta,
+            Detalhe = usb == 0 ? "Desligada" : usb < 0 ? "Não deu pra ler" : "Ligada: o Windows pode 'adormecer' mouse e teclado USB.",
+            Botao = "Desligar",
+            Automatica = true,
+            Acao = () => { Ajustes.DesligarUsbSeletiva(); return null; }
+        });
+
+        bool thr = Ajustes.ThrottlingLigado();
+        l.Add(new Checagem
+        {
+            Nome = "Power Throttling",
+            Status = thr ? Status.Alerta : Status.Ok,
+            Detalhe = thr ? "Ligado: o Windows pode segurar o processador em programas que ele acha que são de fundo." : "Desligado",
+            Botao = "Desligar",
+            Automatica = true,
+            Acao = () => { Ajustes.DesligarThrottling(); return null; }
+        });
+
+        int rede = Ajustes.PlacasComEconomia();
+        if (rede >= 0)
+            l.Add(new Checagem
+            {
+                Nome = "Economia de energia da placa de rede",
+                Status = rede == 0 ? Status.Ok : Status.Alerta,
+                Detalhe = rede == 0 ? "Desligada" : "Ligada: o Windows pode desligar a placa de rede pra economizar e causar picos de ping.",
+                Botao = "Desligar",
+                Automatica = true,
+                Acao = () => { Ajustes.DesligarEconomiaRede(); return "Pronto! Vale depois de reiniciar o PC (assim tua internet não cai agora)."; }
+            });
+
         // ---------- Segurança (troca: decisão do usuário) ----------
         var dg = Sistema.Wmi("SELECT VirtualizationBasedSecurityStatus FROM Win32_DeviceGuard", @"root\Microsoft\Windows\DeviceGuard").FirstOrDefault();
         int? hvci = Sistema.LerRegInt(@"HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity", "Enabled");

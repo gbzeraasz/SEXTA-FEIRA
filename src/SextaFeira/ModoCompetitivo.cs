@@ -30,6 +30,14 @@ internal static class ModoCompetitivo
     private static bool fechouOneDrive;
     public static string JogoAtual { get; private set; }
 
+    // ----- RAM contínua (estilo ISLC) -----
+    // Limpa a lista em espera só quando precisa: pouca RAM livre E bastante coisa em espera.
+    private const double LimiteLivre = 1024d * 1024 * 1024;      // menos de 1 GB livre
+    private const double LimiteEmEspera = 1024d * 1024 * 1024;   // mais de 1 GB em espera
+    private static DateTime ultimaLimpeza = DateTime.MinValue;
+    public static int LimpezasRam { get; private set; }
+    public static double RamLiberadaTotal { get; private set; }
+
     public static List<string> Ligar()
     {
         var feito = new List<string>();
@@ -56,6 +64,8 @@ internal static class ModoCompetitivo
 
         Ativo = true;
         LigadoEm = DateTime.Now;
+        LimpezasRam = 0;
+        RamLiberadaTotal = 0;
         Atualizar();
         feito.Add("Prioridade: jogo em primeiro, programas de fundo por último");
         Atualizador.Log("Modo Competitivo ligado");
@@ -78,6 +88,27 @@ internal static class ModoCompetitivo
         foreach (var nome in Fundo)
             foreach (var p in Process.GetProcessesByName(nome))
                 Prioridade(p, ProcessPriorityClass.BelowNormal);
+
+        if (Configuracao.Atual.RamContinua) VerificarRam();
+    }
+
+    private static void VerificarRam()
+    {
+        try
+        {
+            if ((DateTime.Now - ultimaLimpeza).TotalSeconds < 30) return;
+            double livre = Otimizador.RamLivre();
+            double emEspera = Otimizador.RamEmEspera();
+            if (livre >= LimiteLivre || emEspera < LimiteEmEspera) return;
+
+            Otimizador.LiberarRamEmEspera();
+            ultimaLimpeza = DateTime.Now;
+            double liberado = Math.Max(0, emEspera - Otimizador.RamEmEspera());
+            LimpezasRam++;
+            RamLiberadaTotal += liberado;
+            Atualizador.Log($"Competitivo: RAM em espera limpa ({Sistema.Formatar(liberado)}), livre estava {Sistema.Formatar(livre)}");
+        }
+        catch { }
     }
 
     private static void Prioridade(Process p, ProcessPriorityClass nova)
