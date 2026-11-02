@@ -34,9 +34,9 @@ internal class JanelaPrincipal : Form
     private readonly Label lblStatus = Tema.Rotulo("", Tema.Negrito, Tema.Destaque);
     private readonly Label lblResultado = Tema.Rotulo("Clica em OTIMIZAR antes de abrir o jogo.", Tema.Normal, Tema.Apagado);
     private readonly Label lblContador = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
-    private readonly Label lblNota = Tema.Rotulo("--%", new Font("Segoe UI", 38f, FontStyle.Bold), Tema.Destaque);
+    private readonly Label lblNota = Tema.Rotulo("--%", Hud.Leve(38f), Tema.Destaque);
     private readonly Label lblNotaTxt = Tema.Rotulo("analisando...", Tema.Pequena, Tema.Apagado);
-    private readonly Label lblTemp = Tema.Rotulo("-- °C", new Font("Segoe UI", 32f, FontStyle.Bold), Tema.Apagado);
+    private readonly Label lblTemp = Tema.Rotulo("-- °C", Hud.Leve(32f), Tema.Apagado);
     private readonly Label lblTempInfo = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
     private readonly Label lblTempExplica = Tema.Rotulo("Lendo o sensor...", Tema.Pequena, Tema.Texto);
     private readonly Label lblSaudeTitulo = Tema.Rotulo("Analisando...", Tema.Negrito, Tema.Destaque);
@@ -305,10 +305,14 @@ internal class JanelaPrincipal : Form
 
     private Panel NovaPagina(string titulo, string subtitulo)
     {
-        var p = new Panel { Dock = DockStyle.Fill, BackColor = Tema.Fundo, AutoScroll = true, Padding = new Padding(30, 26, 30, 20) };
+        var p = new PainelHud { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(30, 26, 30, 20) };
         Tema.Escurecer(p);
-        var t = Tema.Rotulo(titulo, Tema.Titulo);
-        t.Location = new Point(30, 24);
+        // tracinho holográfico ao lado do título
+        var marca = new Panel { BackColor = Hud.Ciano, Location = new Point(18, 33), Size = new Size(4, 26) };
+        marca.Region = new Region(Hud.Redondo(new RectangleF(0, 0, 4, 26), 2));
+        p.Controls.Add(marca);
+        var t = Tema.Rotulo(titulo, Tema.Titulo, Color.White);
+        t.Location = new Point(28, 24);
         p.Controls.Add(t);
         if (subtitulo != null)
         {
@@ -325,9 +329,11 @@ internal class JanelaPrincipal : Form
         var c = new Panel { Location = new Point(x, y), Size = new Size(w, h), BackColor = Tema.Card };
         if (titulo != null)
         {
-            var t = Tema.Rotulo(titulo.ToUpperInvariant(), Tema.Pequena, Tema.Apagado);
-            t.Font = new Font("Segoe UI Semibold", 8.5f);
-            t.Location = new Point(18, 14);
+            var ponto = Tema.Rotulo("●", new Font("Segoe UI", 7f), Hud.Ciano);
+            ponto.Location = new Point(16, 17);
+            c.Controls.Add(ponto);
+            var t = Tema.Rotulo(titulo, new Font(Hud.FonteForte, 9.5f), Hud.CianoClaro);
+            t.Location = new Point(30, 13);
             c.Controls.Add(t);
         }
         return c;
@@ -1162,7 +1168,7 @@ internal class JanelaPrincipal : Form
     private readonly Label lblCompFeito = Tema.Rotulo("", Tema.Normal, Tema.Texto);
     private readonly Label lblCompJogo = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
     private readonly Label lblConexao = Tema.Rotulo("Ainda não testada.", Tema.Normal, Tema.Apagado);
-    private readonly Label lblConexaoNota = Tema.Rotulo("", new Font("Segoe UI", 20f, FontStyle.Bold), Tema.Apagado);
+    private readonly Label lblConexaoNota = Tema.Rotulo("", new Font(Hud.FonteForte, 20f), Tema.Apagado);
     private readonly System.Windows.Forms.Timer timerComp = new() { Interval = 4000 };
     private ModoCompetitivo.Conexao conexaoAntes;
 
@@ -1173,7 +1179,7 @@ internal class JanelaPrincipal : Form
 
         var card = Card(30, 104, 900, 300);
         btnCompetitivo = Tema.Botao("🏆  LIGAR MODO COMPETITIVO", Tema.Destaque, 340, 64);
-        btnCompetitivo.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
+        btnCompetitivo.Font = new Font(Hud.FonteForte, 13f);
         btnCompetitivo.Location = new Point(24, 24);
         btnCompetitivo.Click += async (_, _) => await AlternarCompetitivo();
         card.Controls.Add(btnCompetitivo);
@@ -1319,9 +1325,9 @@ internal class JanelaPrincipal : Form
     private readonly ComboBox cmbDuracao = new();
     private Button btnMedir, btnAntesDepois, btnTestePc;
     private readonly Label lblBenchStatus = Tema.Rotulo("", Tema.Negrito, Tema.Destaque);
-    private readonly Label lblFpsMedia = Tema.Rotulo("--", new Font("Segoe UI", 30f, FontStyle.Bold), Tema.Texto);
-    private readonly Label lblFpsLow = Tema.Rotulo("--", new Font("Segoe UI", 30f, FontStyle.Bold), Tema.Texto);
-    private readonly Label lblFpsLow01 = Tema.Rotulo("--", new Font("Segoe UI", 30f, FontStyle.Bold), Tema.Texto);
+    private readonly Label lblFpsMedia = Tema.Rotulo("--", Hud.Leve(30f), Tema.Texto);
+    private readonly Label lblFpsLow = Tema.Rotulo("--", Hud.Leve(30f), Tema.Texto);
+    private readonly Label lblFpsLow01 = Tema.Rotulo("--", Hud.Leve(30f), Tema.Texto);
     private readonly Label lblFpsComparacao = Tema.Rotulo("", Tema.Normal, Tema.Texto);
     private readonly Label lblTestePc = Tema.Rotulo("Mede o processador e o disco C. Repete de vez em quando: se cair muito, o app avisa.", Tema.Pequena, Tema.Apagado);
     private readonly Label lblHistorico = Tema.Rotulo("", Tema.Mono, Tema.Texto);
@@ -1567,7 +1573,7 @@ internal class JanelaPrincipal : Form
     //  Página: Mira dos pros
     // =====================================================================
 
-    private readonly Panel listaPros = new();
+    private readonly PainelHud listaPros = new();
     private readonly Dictionary<string, Button> abasPros = new();
     private readonly Label lblComoImportar = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
 
@@ -1589,9 +1595,8 @@ internal class JanelaPrincipal : Form
         lblComoImportar.MaximumSize = new Size(LarguraUtil, 0);
         p.Controls.Add(lblComoImportar);
 
-        listaPros.Location = new Point(30, 196);
-        listaPros.Size = new Size(904, 540);
-        listaPros.BackColor = Tema.Fundo;
+        listaPros.Location = new Point(26, 192);
+        listaPros.Size = new Size(912, 548);
         listaPros.AutoScroll = true;
         Tema.Escurecer(listaPros);
         p.Controls.Add(listaPros);
@@ -1618,15 +1623,15 @@ internal class JanelaPrincipal : Form
         foreach (var time in lj.Times)
         {
             // cabeçalho do time
-            var barra = new Panel { BackColor = time.Cor, Location = new Point(0, y + 4), Size = new Size(4, 22) };
+            var barra = new Panel { BackColor = time.Cor, Location = new Point(4, y + 8), Size = new Size(4, 22) };
             listaPros.Controls.Add(barra);
-            var nomeTime = Tema.Rotulo(time.Nome.ToUpperInvariant(), new Font("Segoe UI", 12f, FontStyle.Bold), time.Cor);
-            nomeTime.Location = new Point(12, y + 2);
+            var nomeTime = Tema.Rotulo(time.Nome.ToUpperInvariant(), new Font(Hud.FonteForte, 12f), time.Cor);
+            nomeTime.Location = new Point(16, y + 6);
             listaPros.Controls.Add(nomeTime);
             if (time.Obs != null)
             {
                 var obs = Tema.Rotulo(time.Obs, Tema.Pequena, Tema.Apagado);
-                obs.Location = new Point(nomeTime.PreferredWidth + 24, y + 7);
+                obs.Location = new Point(nomeTime.PreferredWidth + 28, y + 11);
                 listaPros.Controls.Add(obs);
             }
             y += 36;
@@ -1636,7 +1641,7 @@ internal class JanelaPrincipal : Form
                 var pro = time.Jogadores[i];
                 int col = i % 2;
                 var card = CartaoPro(pro, time, lj.Jogo);
-                card.Location = new Point(col * 446, y);
+                card.Location = new Point(4 + col * 446, y + 4);
                 listaPros.Controls.Add(card);
                 if (col == 1 || i == time.Jogadores.Length - 1) y += card.Height + 12;
             }
@@ -1720,7 +1725,7 @@ internal class JanelaPrincipal : Form
     private Panel MontarReparos()
     {
         var p = NovaPagina("Reparos", "Consertos rápidos com as ferramentas oficiais do Windows. Clica no problema que tu tá tendo.");
-        var lista = new Panel { Location = new Point(30, 100), Size = new Size(904, 640), BackColor = Tema.Fundo, AutoScroll = true };
+        var lista = new PainelHud { Location = new Point(26, 96), Size = new Size(912, 648), AutoScroll = true };
         Tema.Escurecer(lista);
         p.Controls.Add(lista);
 
@@ -1728,7 +1733,7 @@ internal class JanelaPrincipal : Form
         foreach (var r in Reparos.Lista)
         {
             int col = i % 2, lin = i / 2;
-            var c = new Panel { Location = new Point(col * 446, lin * 118), Size = new Size(434, 106), BackColor = Tema.Card };
+            var c = new Panel { Location = new Point(4 + col * 446, 4 + lin * 118), Size = new Size(434, 106), BackColor = Tema.Card };
 
             var ic = Tema.Rotulo(r.Icone, new Font("Segoe UI Emoji", 16f), Tema.Texto);
             ic.Location = new Point(14, 12);
@@ -1813,7 +1818,7 @@ internal class JanelaPrincipal : Form
     private readonly Panel areaAlvos = new();
     private readonly Label lblVeredito = Tema.Rotulo("", Tema.Negrito, Tema.Texto);
     private readonly Label lblVereditoDet = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
-    private readonly Label lblBbNota = Tema.Rotulo("--", new Font("Segoe UI", 30f, FontStyle.Bold), Tema.Apagado);
+    private readonly Label lblBbNota = Tema.Rotulo("--", Hud.Leve(30f), Tema.Apagado);
     private readonly Label lblBbTxt = Tema.Rotulo("Mede quanto o ping sobe quando a internet está sendo usada (o famoso bufferbloat).", Tema.Pequena, Tema.Apagado);
     private readonly Label lblRedeInfo = Tema.Rotulo("Lendo a placa de rede...", Tema.Pequena, Tema.Apagado);
     private readonly Label lblRedeAjustes = Tema.Rotulo("", Tema.Pequena, Tema.Texto);

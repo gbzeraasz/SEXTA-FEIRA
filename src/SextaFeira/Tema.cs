@@ -7,12 +7,12 @@ namespace SextaFeira;
 /// <summary>Visual da SEXTA-FEIRA: escuro com azul holográfico.</summary>
 internal static class Tema
 {
-    public static readonly Color Fundo = Color.FromArgb(10, 12, 20);
-    public static readonly Color Lateral = Color.FromArgb(14, 17, 28);
-    public static readonly Color Card = Color.FromArgb(20, 24, 38);
-    public static readonly Color CardClaro = Color.FromArgb(30, 35, 54);
+    public static readonly Color Fundo = Color.FromArgb(7, 10, 18);
+    public static readonly Color Lateral = Color.FromArgb(9, 13, 23);
+    public static readonly Color Card = Color.FromArgb(13, 19, 33);
+    public static readonly Color CardClaro = Color.FromArgb(22, 31, 50);
     public static readonly Color Texto = Color.FromArgb(232, 236, 245);
-    public static readonly Color Apagado = Color.FromArgb(132, 140, 165);
+    public static readonly Color Apagado = Color.FromArgb(128, 146, 172);
     public static readonly Color Destaque = Color.FromArgb(0, 209, 255);
     public static readonly Color DestaqueEscuro = Color.FromArgb(0, 120, 160);
     public static readonly Color Verde = Color.FromArgb(46, 213, 115);
@@ -23,8 +23,8 @@ internal static class Tema
     public static readonly Font Pequena = new("Segoe UI", 9f);
     public static readonly Font Negrito = new("Segoe UI Semibold", 10.5f);
     public static readonly Font Subtitulo = new("Segoe UI Semibold", 13f);
-    public static readonly Font Titulo = new("Segoe UI", 22f, FontStyle.Bold);
-    public static readonly Font Mono = new("Consolas", 9.5f);
+    public static readonly Font Titulo = new("Segoe UI Semibold", 22f);
+    public static readonly Font Mono = new("Segoe UI", 9.5f);
 
     private static Icon icone;
     public static Icon Icone
@@ -67,22 +67,13 @@ internal static class Tema
 
     public static Button Botao(string texto, Color? cor = null, int largura = 160, int altura = 40)
     {
-        var c = cor ?? Destaque;
-        var b = new Button
+        return new BotaoArredondado
         {
             Text = texto,
             Font = Negrito,
             Size = new Size(largura, altura),
-            FlatStyle = FlatStyle.Flat,
-            BackColor = c,
-            ForeColor = c.GetBrightness() > 0.55f ? Color.FromArgb(10, 12, 20) : Color.White,
-            Cursor = Cursors.Hand,
-            UseVisualStyleBackColor = false
+            BackColor = cor ?? Destaque
         };
-        b.FlatAppearance.BorderSize = 0;
-        b.FlatAppearance.MouseOverBackColor = ControlPaint.Light(c, 0.15f);
-        b.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(c, 0.1f);
-        return b;
     }
 
     public static Panel CardPainel()
@@ -152,4 +143,78 @@ internal class BarraUso : Control
 
     private static Color CorPara(float v) =>
         v < 0 ? Tema.Apagado : v >= 90 ? Tema.Vermelho : v >= 70 ? Tema.Amarelo : Tema.Destaque;
+}
+
+/// <summary>
+/// Botão arredondado no estilo HUD. A cor vem do BackColor (igual um Button normal):
+/// cor forte = botão cheio com degradê; CardClaro = botão de vidro com borda azul.
+/// </summary>
+internal class BotaoArredondado : Button
+{
+    private bool hover, apertado, trocando;
+    private Color cor = Tema.Destaque;
+
+    public BotaoArredondado()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+        FlatStyle = FlatStyle.Flat;
+        FlatAppearance.BorderSize = 0;
+        Cursor = Cursors.Hand;
+        UseVisualStyleBackColor = false;
+        trocando = true; BackColor = Color.Transparent; trocando = false;
+    }
+
+    protected override void OnBackColorChanged(EventArgs e)
+    {
+        if (!trocando && BackColor != Color.Transparent)
+        {
+            cor = BackColor;
+            trocando = true;
+            BackColor = Color.Transparent;
+            trocando = false;
+        }
+        Invalidate();
+        base.OnBackColorChanged(e);
+    }
+
+    protected override bool ShowFocusCues => false;
+    protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { hover = false; apertado = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { apertado = true; Invalidate(); base.OnMouseDown(e); }
+    protected override void OnMouseUp(MouseEventArgs e) { apertado = false; Invalidate(); base.OnMouseUp(e); }
+    protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+
+        bool vidro = cor == Tema.CardClaro || cor == Tema.Card;
+        var c = Enabled ? cor : Tema.CardClaro;
+        var r = new RectangleF(1, 1, Width - 3, Height - 3);
+        using var caminho = Hud.Redondo(r, Math.Min(10, Height / 2f));
+
+        if (vidro || !Enabled)
+        {
+            using var fundo = new SolidBrush(Hud.Alfa(Tema.Destaque, apertado ? 60 : hover ? 36 : 14));
+            g.FillPath(fundo, caminho);
+            using var borda = new Pen(Hud.Alfa(Tema.Destaque, !Enabled ? 40 : hover ? 200 : 85), 1.2f);
+            g.DrawPath(borda, caminho);
+        }
+        else
+        {
+            var cima = hover ? ControlPaint.Light(c, 0.35f) : ControlPaint.Light(c, 0.15f);
+            var baixo = apertado ? ControlPaint.Dark(c, 0.25f) : ControlPaint.Dark(c, 0.08f);
+            using var fundo = new LinearGradientBrush(r, cima, baixo, 90f);
+            g.FillPath(fundo, caminho);
+            if (hover)
+                using (var brilho = new Pen(Hud.Alfa(c, 70), 4)) g.DrawPath(brilho, caminho);
+        }
+
+        Color corTexto = !Enabled ? Tema.Apagado
+            : vidro ? (hover ? Color.White : Tema.Texto)
+            : (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) > 140 ? Color.FromArgb(4, 16, 28) : Color.White;
+        TextRenderer.DrawText(g, Text, Font, Rectangle.Round(r), corTexto,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
+    }
 }

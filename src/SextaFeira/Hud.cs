@@ -123,7 +123,11 @@ internal static class Hud
     }
 }
 
-/// <summary>Página com fundo holográfico. Filhos transparentes mostram a grade por trás.</summary>
+/// <summary>
+/// Página com fundo holográfico. Filhos transparentes mostram a grade por trás.
+/// Se estiver dentro de outra PainelHud, continua a grade da página (fica tudo emendado).
+/// Cards (painéis com cor Tema.Card) ganham cantos arredondados e moldura de vidro automaticamente.
+/// </summary>
 internal class PainelHud : Panel
 {
     public PainelHud()
@@ -133,11 +137,77 @@ internal class PainelHud : Panel
         BackColor = Hud.Fundo;
     }
 
+    private PainelHud Raiz()
+    {
+        PainelHud r = this;
+        for (var c = Parent; c != null; c = c.Parent)
+            if (c is PainelHud ph) r = ph;
+        return r;
+    }
+
     protected override void OnPaintBackground(PaintEventArgs e)
     {
         if (Width <= 0 || Height <= 0) return;
-        e.Graphics.DrawImageUnscaled(Hud.FundoGrade(Size), 0, 0);
+        var raiz = Raiz();
+        if (raiz == this) e.Graphics.DrawImageUnscaled(Hud.FundoGrade(Size), 0, 0);
+        else
+        {
+            var deslocamento = raiz.PointToClient(PointToScreen(Point.Empty));
+            e.Graphics.DrawImageUnscaled(Hud.FundoGrade(raiz.Size), -deslocamento.X, -deslocamento.Y);
+        }
+
+        // moldura de vidro em volta dos cards
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        foreach (Control c in Controls)
+        {
+            if (!c.Visible || !EhCard(c)) continue;
+            var r = new RectangleF(c.Left - 1.5f, c.Top - 1.5f, c.Width + 2f, c.Height + 2f);
+            using (var aura = Hud.Redondo(new RectangleF(r.X - 3, r.Y - 3, r.Width + 6, r.Height + 6), 16))
+            using (var b = new SolidBrush(Color.FromArgb(14, 0, 209, 255)))
+                g.FillPath(b, aura);
+            using var borda = Hud.Redondo(r, 13);
+            using var pen = new Pen(Color.FromArgb(48, 0, 209, 255), 1.2f);
+            g.DrawPath(pen, borda);
+        }
     }
+
+    public static bool EhCard(Control c) => c.BackColor == Tema.Card && c is not Button && c is not Label;
+
+    protected override void OnControlAdded(ControlEventArgs e)
+    {
+        base.OnControlAdded(e);
+        var c = e.Control;
+        void Arredondar()
+        {
+            if (!EhCard(c) || c.Width <= 0 || c.Height <= 0) return;
+            using var caminho = Hud.Redondo(new RectangleF(0, 0, c.Width, c.Height), 12);
+            c.Region = new Region(caminho);
+        }
+        Arredondar();
+        c.SizeChanged += (_, _) => { Arredondar(); Invalidate(); };
+        c.BackColorChanged += (_, _) => { Arredondar(); Invalidate(); };
+        c.LocationChanged += (_, _) => Invalidate();
+        c.VisibleChanged += (_, _) => Invalidate();
+        if (c is Panel && EhCard(c))
+            c.Paint += (_, pe) =>
+            {
+                // reflexo fino no topo do card
+                using var br = new LinearGradientBrush(new Rectangle(0, 0, Math.Max(2, c.Width), 2), Color.Transparent, Color.Transparent, 0f);
+                br.InterpolationColors = new ColorBlend
+                {
+                    Colors = new[] { Color.Transparent, Color.FromArgb(120, 0, 209, 255), Color.Transparent },
+                    Positions = new[] { 0f, 0.5f, 1f }
+                };
+                pe.Graphics.FillRectangle(br, 12, 0, c.Width - 24, 1);
+            };
+    }
+
+    protected override void OnControlRemoved(ControlEventArgs e) { base.OnControlRemoved(e); Invalidate(); }
+
+    // A grade fica parada e o conteúdo rola: redesenha tudo pra não "borrar".
+    protected override void OnScroll(ScrollEventArgs se) { base.OnScroll(se); Invalidate(true); }
+    protected override void OnMouseWheel(MouseEventArgs e) { base.OnMouseWheel(e); if (VerticalScroll.Visible) Invalidate(true); }
 }
 
 /// <summary>Card translúcido com cantos em colchete e título em fonte técnica.</summary>
