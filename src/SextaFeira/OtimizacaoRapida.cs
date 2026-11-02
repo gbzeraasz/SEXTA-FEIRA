@@ -21,7 +21,7 @@ internal static class OtimizacaoRapida
         // Ela é aplicada sozinha quando este processo fechar.
         var atualizacao = Task.Run(() => Atualizador.AtualizarEmSilencio());
 
-        AvisoPopup.Mostrar("⚡ PC otimizado! Bom jogo", r.Frase());
+        AvisoPopup.Mostrar("PC otimizado · bom jogo", r.Frase());
 
         try { atualizacao.Wait(TimeSpan.FromSeconds(120)); } catch { }
     }

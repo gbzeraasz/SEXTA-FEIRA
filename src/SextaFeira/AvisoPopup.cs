@@ -1,16 +1,19 @@
 namespace SextaFeira;
 
 /// <summary>
-/// Aviso próprio da SEXTA-FEIRA no canto da tela, em cima da barra de tarefas.
-/// Diferente da notificação do Windows, aparece mesmo com o "Não perturbe" ligado
-/// e não rouba o foco do jogo.
+/// Aviso discreto da SEXTA-FEIRA no canto superior direito.
+/// Aparece mesmo com o "Não perturbe" ligado e não rouba o foco do jogo.
 /// </summary>
 internal class AvisoPopup : Form
 {
     private readonly System.Windows.Forms.Timer anim = new() { Interval = 15 };
-    private int fase;            // 0 = aparecendo, 1 = parado, 2 = sumindo
-    private int ticksParado;
-    private const int TempoNaTela = 5500; // ms
+    private int fase;              // 0 = entrando, 1 = parado, 2 = saindo
+    private int msParado;
+    private const int TempoNaTela = 4000;
+    private const double OpacidadeMax = 0.92;
+    private const int Margem = 14;
+    private const int Deslize = 24;  // quantos pixels ele desliza ao entrar
+    private int xFinal;
 
     public AvisoPopup(string titulo, string texto, bool erro = false)
     {
@@ -18,48 +21,44 @@ internal class AvisoPopup : Form
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        BackColor = Tema.Card;
+        BackColor = Color.FromArgb(18, 20, 30);
         Opacity = 0;
-        Width = 400;
+        Width = 300;
 
-        var cor = erro ? Tema.Vermelho : Tema.Amarelo;
-
-        // faixa colorida na esquerda
-        Controls.Add(new Panel { BackColor = cor, Dock = DockStyle.Left, Width = 5 });
+        var cor = erro ? Tema.Vermelho : Tema.Destaque;
 
         var icone = new PictureBox
         {
             Image = CarregarRaio(),
             SizeMode = PictureBoxSizeMode.Zoom,
-            Size = new Size(40, 40),
-            Location = new Point(20, 18),
+            Size = new Size(22, 22),
+            Location = new Point(12, 12),
             BackColor = Color.Transparent
         };
         Controls.Add(icone);
 
-        var lblTitulo = Tema.Rotulo(titulo, Tema.Negrito, cor);
-        lblTitulo.Location = new Point(74, 14);
+        var lblTitulo = Tema.Rotulo(titulo, new Font("Segoe UI Semibold", 9f), Tema.Texto);
+        lblTitulo.Location = new Point(42, 9);
         Controls.Add(lblTitulo);
 
-        var lblTexto = Tema.Rotulo(texto, Tema.Normal, Tema.Texto);
-        lblTexto.Location = new Point(74, 40);
-        lblTexto.MaximumSize = new Size(Width - 74 - 18, 0);
+        var lblTexto = Tema.Rotulo(texto, new Font("Segoe UI", 8.5f), Tema.Apagado);
+        lblTexto.Location = new Point(42, 28);
+        lblTexto.MaximumSize = new Size(Width - 42 - 12, 0);
         Controls.Add(lblTexto);
 
-        var lblMarca = Tema.Rotulo("SEXTA-FEIRA", new Font("Segoe UI Semibold", 7.5f), Tema.Apagado);
-        Controls.Add(lblMarca);
+        int alturaTexto = TextRenderer.MeasureText(texto, lblTexto.Font,
+            new Size(lblTexto.MaximumSize.Width, 0), TextFormatFlags.WordBreak).Height;
+        Height = Math.Max(48, 28 + alturaTexto + 10);
 
-        // altura de acordo com o texto
-        int alturaTexto = TextRenderer.MeasureText(texto, Tema.Normal, new Size(lblTexto.MaximumSize.Width, 0), TextFormatFlags.WordBreak).Height;
-        Height = Math.Max(84, 40 + alturaTexto + 30);
-        lblMarca.Location = new Point(74, Height - 22);
+        // linha fininha embaixo, na cor do aviso
+        Controls.Add(new Panel { BackColor = cor, Dock = DockStyle.Bottom, Height = 2 });
 
         var area = Screen.PrimaryScreen!.WorkingArea;
-        Location = new Point(area.Right - Width - 16, area.Bottom - Height - 16);
+        xFinal = area.Right - Width - Margem;
+        Location = new Point(xFinal + Deslize, area.Top + Margem);
 
-        try { Region = new Region(Tema.Arredondado(new Rectangle(0, 0, Width, Height), 10)); } catch { }
+        try { Region = new Region(Tema.Arredondado(new Rectangle(0, 0, Width, Height), 8)); } catch { }
 
-        // clicar fecha
         Click += (_, _) => fase = 2;
         foreach (Control c in Controls) c.Click += (_, _) => fase = 2;
 
@@ -72,7 +71,7 @@ internal class AvisoPopup : Form
         try
         {
             string raio = Path.Combine(AppContext.BaseDirectory, "raio.ico");
-            if (File.Exists(raio)) return new Icon(raio, 48, 48).ToBitmap();
+            if (File.Exists(raio)) return new Icon(raio, 32, 32).ToBitmap();
         }
         catch { }
         return Tema.Icone.ToBitmap();
@@ -82,16 +81,17 @@ internal class AvisoPopup : Form
     {
         switch (fase)
         {
-            case 0:
-                Opacity = Math.Min(1, Opacity + 0.08);
-                if (Opacity >= 1) fase = 1;
+            case 0: // desliza da direita e aparece
+                Opacity = Math.Min(OpacidadeMax, Opacity + 0.07);
+                Left = Math.Max(xFinal, Left - 3);
+                if (Opacity >= OpacidadeMax && Left == xFinal) fase = 1;
                 break;
             case 1:
-                ticksParado += anim.Interval;
-                if (ticksParado >= TempoNaTela) fase = 2;
+                msParado += anim.Interval;
+                if (msParado >= TempoNaTela) fase = 2;
                 break;
-            default:
-                Opacity = Math.Max(0, Opacity - 0.06);
+            default: // some devagar
+                Opacity = Math.Max(0, Opacity - 0.05);
                 if (Opacity <= 0) { anim.Stop(); Close(); }
                 break;
         }

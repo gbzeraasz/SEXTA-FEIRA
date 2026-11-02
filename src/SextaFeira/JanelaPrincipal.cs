@@ -537,7 +537,7 @@ internal class JanelaPrincipal : Form
             }
             // Roda exatamente o que o raio da barra roda
             Sistema.Rodar("schtasks", $"/run /tn \"{Atalho.NomeTarefa}\"");
-            MessageBox.Show("Rodando! Em alguns segundos o aviso \"PC otimizado\" aparece no canto de baixo da tela.\n\nSe não aparecer, me manda o arquivo log.txt (Ferramentas → Abrir pasta de dados).",
+            MessageBox.Show("Rodando! Em alguns segundos o aviso \"PC otimizado\" aparece no canto de cima da tela.\n\nSe não aparecer, me manda o arquivo log.txt (Ferramentas → Abrir pasta de dados).",
                 "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
         };
         c1.Controls.Add(btnTestar);
