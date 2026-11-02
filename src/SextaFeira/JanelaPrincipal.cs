@@ -89,6 +89,7 @@ internal class JanelaPrincipal : Form
         paginas["jogos"] = MontarJogos();
         paginas["competitivo"] = MontarCompetitivo();
         paginas["limpeza"] = MontarLimpeza();
+        paginas["internet"] = MontarInternet();
         paginas["benchmark"] = MontarBenchmark();
         paginas["pros"] = MontarPros();
         paginas["reparos"] = MontarReparos();
@@ -134,6 +135,7 @@ internal class JanelaPrincipal : Form
     {
         new("inicio", "⚡  Início"),
         new("limpeza", "🧹  Limpeza 1 clique"),
+        new("internet", "🌐  Internet"),
         new("g-checagem", "🩺  Checagem", new[] { ("checagem", "Checagem do PC"), ("benchmark", "Benchmark"), ("reparos", "Reparos"), ("restauracao", "Ponto de restauração") }),
         new("g-biblioteca", "📚  Biblioteca", new[] { ("jogos", "Meus jogos"), ("pros", "Mira dos pros"), ("competitivo", "Competitivo") }),
         new("ferramentas", "🛠  Ferramentas"),
@@ -1696,6 +1698,246 @@ internal class JanelaPrincipal : Form
     }
 
     // =====================================================================
+    //  Página: Internet
+    // =====================================================================
+
+    private Button btnDiagnostico, btnBufferbloat, btnAjustesRede;
+    private readonly Label lblDiagStatus = Tema.Rotulo("Ainda não testado.", Tema.Pequena, Tema.Apagado);
+    private readonly Panel areaAlvos = new();
+    private readonly Label lblVeredito = Tema.Rotulo("", Tema.Negrito, Tema.Texto);
+    private readonly Label lblVereditoDet = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+    private readonly Label lblBbNota = Tema.Rotulo("--", new Font("Segoe UI", 30f, FontStyle.Bold), Tema.Apagado);
+    private readonly Label lblBbTxt = Tema.Rotulo("Mede quanto o ping sobe quando a internet está sendo usada (o famoso bufferbloat).", Tema.Pequena, Tema.Apagado);
+    private readonly Label lblRedeInfo = Tema.Rotulo("Lendo a placa de rede...", Tema.Pequena, Tema.Apagado);
+    private readonly Label lblRedeAjustes = Tema.Rotulo("", Tema.Pequena, Tema.Texto);
+    private bool testandoRede;
+
+    private Panel MontarInternet()
+    {
+        var p = NovaPagina("Internet", "Descobre de onde vêm os picos de ping e aplica os ajustes de rede que funcionam de verdade.");
+
+        // ---------- Diagnóstico ----------
+        var diag = Card(30, 100, 900, 360, "Diagnóstico de picos (60 segundos)");
+        btnDiagnostico = Tema.Botao("▶ Diagnosticar", Tema.Destaque, 170, 36);
+        btnDiagnostico.Location = new Point(18, 38);
+        btnDiagnostico.Click += async (_, _) => await RodarDiagnostico();
+        diag.Controls.Add(btnDiagnostico);
+        lblDiagStatus.Location = new Point(200, 48);
+        lblDiagStatus.MaximumSize = new Size(680, 0);
+        diag.Controls.Add(lblDiagStatus);
+
+        areaAlvos.Location = new Point(18, 84);
+        areaAlvos.Size = new Size(864, 200);
+        areaAlvos.BackColor = Tema.Card;
+        diag.Controls.Add(areaAlvos);
+
+        lblVeredito.Location = new Point(18, 290);
+        diag.Controls.Add(lblVeredito);
+        lblVereditoDet.Location = new Point(18, 314);
+        lblVereditoDet.MaximumSize = new Size(860, 0);
+        diag.Controls.Add(lblVereditoDet);
+        p.Controls.Add(diag);
+
+        // ---------- Bufferbloat ----------
+        var bb = Card(30, 474, 440, 266, "Bufferbloat (~40 segundos)");
+        btnBufferbloat = Tema.Botao("▶ Testar", Tema.CardClaro, 120, 34);
+        btnBufferbloat.Location = new Point(18, 38);
+        btnBufferbloat.Click += async (_, _) => await RodarBufferbloat();
+        bb.Controls.Add(btnBufferbloat);
+        lblBbNota.Location = new Point(320, 30);
+        bb.Controls.Add(lblBbNota);
+        lblBbTxt.Location = new Point(18, 86);
+        lblBbTxt.MaximumSize = new Size(404, 0);
+        bb.Controls.Add(lblBbTxt);
+        p.Controls.Add(bb);
+
+        // ---------- Ajustes ----------
+        var aj = Card(490, 474, 440, 266, "Ajustes de rede");
+        lblRedeInfo.Location = new Point(18, 38);
+        lblRedeInfo.MaximumSize = new Size(404, 0);
+        aj.Controls.Add(lblRedeInfo);
+        lblRedeAjustes.Location = new Point(18, 96);
+        lblRedeAjustes.MaximumSize = new Size(404, 0);
+        aj.Controls.Add(lblRedeAjustes);
+        btnAjustesRede = Tema.Botao("Aplicar ajustes de rede", Tema.Destaque, 210, 34);
+        btnAjustesRede.Location = new Point(18, 216);
+        btnAjustesRede.Click += async (_, _) => await AplicarAjustesRede();
+        aj.Controls.Add(btnAjustesRede);
+        p.Controls.Add(aj);
+        return p;
+    }
+
+    private async Task RodarDiagnostico()
+    {
+        if (testandoRede) return;
+        testandoRede = true;
+        btnDiagnostico.Enabled = btnBufferbloat.Enabled = false;
+        lblVeredito.Text = "";
+        lblVereditoDet.Text = "";
+        lblDiagStatus.Text = "Preparando... joga ou deixa o PC como tu usa normalmente: o teste pega os picos na hora.";
+        try
+        {
+            var alvos = await Rede.MontarAlvos();
+            areaAlvos.Controls.Clear();
+            var graficos = new List<(Rede.Alvo alvo, GraficoPing graf, Label stats)>();
+            int y = 0;
+            foreach (var a in alvos)
+            {
+                var nome = Tema.Rotulo(a.Nome, Tema.Negrito, Tema.Texto);
+                nome.Location = new Point(0, y);
+                areaAlvos.Controls.Add(nome);
+                var exp = Tema.Rotulo(a.Explicacao, Tema.Pequena, Tema.Apagado);
+                exp.Location = new Point(0, y + 22);
+                areaAlvos.Controls.Add(exp);
+                var graf = new GraficoPing { Location = new Point(250, y + 2), Size = new Size(260, 38) };
+                areaAlvos.Controls.Add(graf);
+                var st = Tema.Rotulo("...", Tema.Pequena, Tema.Apagado);
+                st.Location = new Point(522, y + 4);
+                st.MaximumSize = new Size(340, 0);
+                areaAlvos.Controls.Add(st);
+                graficos.Add((a, graf, st));
+                y += 50;
+            }
+
+            using var cts = new CancellationTokenSource();
+            var tarefa = Rede.Diagnosticar(alvos, 60, pct =>
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    lblDiagStatus.Text = $"{pct}%  medindo...  (os pontos amarelos são picos, os vermelhos são pacotes perdidos)";
+                    foreach (var (alvo, graf, stats) in graficos)
+                    {
+                        graf.Valores = alvo.Copia();
+                        stats.Text = alvo.Calcular().Texto();
+                    }
+                }));
+            }, cts.Token);
+            await tarefa;
+
+            foreach (var (alvo, graf, stats) in graficos)
+            {
+                graf.Valores = alvo.Copia();
+                var e = alvo.Calcular();
+                stats.Text = e.Texto();
+                stats.ForeColor = e.Perdidos > 0 || e.Picos >= 3 ? Tema.Amarelo : Tema.Apagado;
+            }
+
+            var (status, titulo, detalhe) = Rede.Veredito(alvos);
+            lblVeredito.Text = titulo;
+            lblVeredito.ForeColor = status == Status.Ok ? Tema.Verde : status == Status.Alerta ? Tema.Amarelo : Tema.Destaque;
+            lblVereditoDet.Text = detalhe;
+            lblDiagStatus.Text = "✅ Diagnóstico concluído.";
+            Atualizador.Log("Diagnóstico de rede: " + titulo + " | " + string.Join(" | ", alvos.Select(a => a.Nome + ": " + a.Calcular().Texto())));
+        }
+        catch (Exception ex)
+        {
+            lblDiagStatus.Text = "Erro no diagnóstico: " + ex.Message;
+            Atualizador.Log("ERRO diagnóstico rede: " + ex);
+        }
+        finally
+        {
+            testandoRede = false;
+            btnDiagnostico.Enabled = btnBufferbloat.Enabled = true;
+        }
+    }
+
+    private async Task RodarBufferbloat()
+    {
+        if (testandoRede) return;
+        testandoRede = true;
+        btnDiagnostico.Enabled = btnBufferbloat.Enabled = false;
+        lblBbNota.Text = "...";
+        lblBbNota.ForeColor = Tema.Apagado;
+        try
+        {
+            var b = await Task.Run(() => Rede.TestarBufferbloat(txt => BeginInvoke(new Action(() => lblBbTxt.Text = txt))));
+            string nota = b.NotaGeral;
+            lblBbNota.Text = nota;
+            lblBbNota.ForeColor = nota is "A+" or "A" ? Tema.Verde : nota == "B" ? Tema.Amarelo : Tema.Vermelho;
+            string dica = nota is "A+" or "A"
+                ? "Ótimo: usar a internet não atrapalha o teu ping. Os picos não vêm daqui."
+                : b.AumentoUp > b.AumentoDown
+                    ? "Enviar dados (upload) faz teu ping disparar. Fecha OBS/live, backup na nuvem e sincronização (OneDrive, Google Drive) quando for jogar. Se o roteador tiver QoS ou 'SQM', liga."
+                    : "Baixar coisas faz teu ping disparar. Pausa downloads da Steam, Epic e Windows Update quando for jogar (o Modo Competitivo já pausa o Update). Se o roteador tiver QoS ou 'SQM', liga.";
+            lblBbTxt.ForeColor = Tema.Texto;
+            lblBbTxt.Text =
+                $"Parado: {b.Parado:0} ms\n" +
+                $"Baixando: {b.Baixando:0} ms (+{b.AumentoDown:0})  •  {b.MbpsDown:0} Mbps  •  nota {Rede.Bufferbloat.Nota(b.AumentoDown)}\n" +
+                $"Enviando: {b.Enviando:0} ms (+{b.AumentoUp:0})  •  {b.MbpsUp:0} Mbps  •  nota {Rede.Bufferbloat.Nota(b.AumentoUp)}\n\n" + dica;
+            Atualizador.Log($"Bufferbloat: {nota} parado {b.Parado:0} down {b.Baixando:0} up {b.Enviando:0} ({b.MbpsDown:0}/{b.MbpsUp:0} Mbps)");
+        }
+        catch (Exception ex)
+        {
+            lblBbTxt.Text = "Erro no teste: " + ex.Message;
+        }
+        finally
+        {
+            testandoRede = false;
+            btnDiagnostico.Enabled = btnBufferbloat.Enabled = true;
+        }
+    }
+
+    private async Task AtualizarInfoRede()
+    {
+        var (placas, eee, economia, p2p) = await Task.Run(() =>
+            (Rede.PlacasAtivas(), Rede.EeeLigado(), Ajustes.PlacasComEconomia(), Rede.AtualizacaoP2PLigada()));
+
+        if (placas.Count == 0) lblRedeInfo.Text = "Nenhuma placa de rede conectada.";
+        else
+        {
+            lblRedeInfo.Text = string.Join("\n", placas.Select(pl =>
+                $"{(Rede.EhCabo(pl) ? "🔌 Cabo" : "📶 Wi-Fi")}: {pl.Velocidade}  •  {pl.Descricao}"));
+            var cabo = placas.FirstOrDefault(Rede.EhCabo);
+            if (cabo != null && cabo.Velocidade.StartsWith("100 M"))
+            {
+                lblRedeInfo.Text += "\n⚠ O cabo está conectado a só 100 Mbps: normalmente é cabo velho/danificado ou porta ruim. O certo é 1 Gbps.";
+                lblRedeInfo.ForeColor = Tema.Amarelo;
+            }
+            else lblRedeInfo.ForeColor = Tema.Apagado;
+        }
+
+        string Linha(bool ok, string txt) => (ok ? "✅ " : "⬜ ") + txt;
+        lblRedeAjustes.Text = string.Join("\n", new[]
+        {
+            Linha(eee == 0, "Ethernet verde (EEE) desligada" + (eee < 0 ? " (não deu pra ler)" : "")),
+            Linha(economia == 0, "Economia de energia da placa desligada"),
+            Linha(!p2p, "Windows Update sem enviar pra outros PCs"),
+        });
+        bool tudoOk = eee <= 0 && economia <= 0 && !p2p;
+        btnAjustesRede.Text = tudoOk ? "✅ Tudo aplicado" : "Aplicar ajustes de rede";
+        btnAjustesRede.BackColor = tudoOk ? Tema.CardClaro : Tema.Destaque;
+    }
+
+    private async Task AplicarAjustesRede()
+    {
+        if (MessageBox.Show("Vou desligar a Ethernet verde (EEE), a economia de energia da placa e o envio de atualizações pra outros PCs.\n\n" +
+                            "O cabo pode desconectar por 2-3 segundos. Tudo pode ser desfeito em Ferramentas → Desfazer mudanças.\n\nContinuar?",
+                "SEXTA-FEIRA", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        btnAjustesRede.Enabled = false;
+        btnAjustesRede.Text = "Aplicando...";
+        try
+        {
+            await Task.Run(() =>
+            {
+                Rede.DesligarEee();
+                Ajustes.DesligarEconomiaRede();
+                Rede.DesligarAtualizacaoP2P();
+            });
+            Atualizador.Log("Ajustes de rede aplicados");
+            MessageBox.Show("Pronto! Reinicia o PC pra tudo valer e depois roda o diagnóstico de novo pra comparar.", "SEXTA-FEIRA");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Não deu: " + ex.Message, "SEXTA-FEIRA");
+        }
+        finally
+        {
+            btnAjustesRede.Enabled = true;
+            await AtualizarInfoRede();
+        }
+    }
+
+    // =====================================================================
     //  Página: Restauração
     // =====================================================================
 
@@ -1969,6 +2211,7 @@ internal class JanelaPrincipal : Form
         _ = CarregarPontos();
         PreencherLimpeza();
         _ = CalcularTamanhos();
+        _ = AtualizarInfoRede();
         timerSaude.Tick += async (_, _) => await AtualizarSaude();
         timerSaude.Start();
 
