@@ -50,7 +50,6 @@ internal class JanelaPrincipal : Form
     private readonly Label lblResumoChecagem = Tema.Rotulo("", Tema.Negrito);
 
     // ---------- jogos ----------
-    private readonly Panel listaJogos = new();
 
     // ---------- ferramentas ----------
     private readonly Label lblAtalho = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
@@ -88,6 +87,7 @@ internal class JanelaPrincipal : Form
         paginas["inicio"] = MontarInicio();
         paginas["checagem"] = MontarChecagem();
         paginas["jogos"] = MontarJogos();
+        paginas["competitivo"] = MontarCompetitivo();
         paginas["restauracao"] = MontarRestauracao();
         paginas["ferramentas"] = MontarFerramentas();
         foreach (var p in paginas.Values) conteudo.Controls.Add(p);
@@ -95,7 +95,7 @@ internal class JanelaPrincipal : Form
 
         timer.Tick += async (_, _) => await AtualizarMonitor();
         Shown += async (_, _) => await Carregar();
-        FormClosing += (_, _) => { timer.Stop(); timerAtualizacao.Stop(); timerSaude.Stop(); Saude.Salvar(); };
+        FormClosing += (_, _) => { timer.Stop(); timerAtualizacao.Stop(); timerSaude.Stop(); Saude.Salvar(); timerComp.Stop(); ModoCompetitivo.Desligar(); };
     }
 
     [DllImport("dwmapi.dll")]
@@ -138,7 +138,7 @@ internal class JanelaPrincipal : Form
 
         int y = 120;
         foreach (var (chave, texto) in new[]
-                 { ("inicio", "⚡  Início"), ("checagem", "🩺  Checagem"), ("jogos", "🎮  Jogos"), ("restauracao", "🛟  Restauração"), ("ferramentas", "🛠  Ferramentas") })
+                 { ("inicio", "⚡  Início"), ("checagem", "🩺  Checagem"), ("jogos", "📚  Biblioteca"), ("competitivo", "🏆  Competitivo"), ("restauracao", "🛟  Restauração"), ("ferramentas", "🛠  Ferramentas") })
         {
             var b = new Button
             {
@@ -347,7 +347,7 @@ internal class JanelaPrincipal : Form
         p.Controls.Add(top);
 
         var dica = Tema.Rotulo(
-            "💡 Com a GTX 1050 Ti, o maior salto de FPS vem das configs do jogo. Vê a aba Jogos.",
+            "💡 O maior salto de FPS vem das configs do jogo. Vê a aba Biblioteca.",
             Tema.Pequena, Tema.Apagado);
         dica.Location = new Point(33, 840);
         p.Controls.Add(dica);
@@ -565,75 +565,293 @@ internal class JanelaPrincipal : Form
     }
 
     // =====================================================================
-    //  Página: Jogos
+    //  Página: Biblioteca
     // =====================================================================
+
+    private List<Biblioteca.JogoInstalado> biblioteca = new();
+    private readonly ListBox listaBiblioteca = new();
+    private readonly Panel detalheJogo = new();
+    private readonly Label lblNivel = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+    private NivelPC nivel = NivelPC.Entrada;
 
     private Panel MontarJogos()
     {
-        var p = NovaPagina("Jogos", "Configs recomendadas pro teu PC. O app nunca mexe no jogo em execução nem injeta nada: seguro com Vanguard, VAC e FACEIT.");
-        listaJogos.Location = new Point(30, 110);
-        listaJogos.Size = new Size(900, 610);
-        listaJogos.AutoScroll = true;
-        listaJogos.BackColor = Tema.Fundo;
-        p.Controls.Add(listaJogos);
+        var p = NovaPagina("Biblioteca", null);
+        lblNivel.Location = new Point(33, 72);
+        lblNivel.MaximumSize = new Size(LarguraUtil, 0);
+        lblNivel.Text = "Procurando teus jogos...";
+        p.Controls.Add(lblNivel);
+
+        listaBiblioteca.Location = new Point(30, 108);
+        listaBiblioteca.Size = new Size(250, 620);
+        listaBiblioteca.BackColor = Tema.Card;
+        listaBiblioteca.ForeColor = Tema.Texto;
+        listaBiblioteca.BorderStyle = BorderStyle.None;
+        listaBiblioteca.Font = Tema.Normal;
+        listaBiblioteca.DrawMode = DrawMode.OwnerDrawFixed;
+        listaBiblioteca.ItemHeight = 46;
+        listaBiblioteca.DrawItem += DesenharItemBiblioteca;
+        listaBiblioteca.SelectedIndexChanged += (_, _) => MostrarJogo();
+        p.Controls.Add(listaBiblioteca);
+
+        detalheJogo.Location = new Point(296, 108);
+        detalheJogo.Size = new Size(634, 620);
+        detalheJogo.BackColor = Tema.Card;
+        detalheJogo.AutoScroll = true;
+        p.Controls.Add(detalheJogo);
         return p;
+    }
+
+    private void DesenharItemBiblioteca(object sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= biblioteca.Count) return;
+        var j = biblioteca[e.Index];
+        bool sel = (e.State & DrawItemState.Selected) != 0;
+        using (var fundo = new SolidBrush(sel ? Tema.CardClaro : Tema.Card))
+            e.Graphics.FillRectangle(fundo, e.Bounds);
+        if (sel)
+            using (var barra = new SolidBrush(Tema.Destaque))
+                e.Graphics.FillRectangle(barra, e.Bounds.X, e.Bounds.Y, 3, e.Bounds.Height);
+
+        var corNome = j.Config != null ? Tema.Texto : Tema.Apagado;
+        TextRenderer.DrawText(e.Graphics, j.Nome, Tema.Negrito, new Rectangle(e.Bounds.X + 14, e.Bounds.Y + 5, e.Bounds.Width - 20, 20),
+            corNome, TextFormatFlags.EndEllipsis | TextFormatFlags.Left);
+        string sub = j.Plataforma + (j.Config != null ? "  •  perfil competitivo" : "  •  dicas gerais");
+        TextRenderer.DrawText(e.Graphics, sub, Tema.Pequena, new Rectangle(e.Bounds.X + 14, e.Bounds.Y + 25, e.Bounds.Width - 20, 18),
+            j.Config != null ? Tema.Destaque : Tema.Apagado, TextFormatFlags.EndEllipsis | TextFormatFlags.Left);
     }
 
     private void PreencherJogos()
     {
-        listaJogos.SuspendLayout();
-        listaJogos.Controls.Clear();
+        lblNivel.Text = $"{biblioteca.Count} jogo(s) encontrado(s)  •  Teu PC está no nível {ConfigsCompetitivas.NomeNivel(nivel)} ({pc.Gpu}). " +
+                        "As configs são sempre pra competitivo: FPS alto, menos atraso e mais visibilidade.";
+        listaBiblioteca.BeginUpdate();
+        listaBiblioteca.Items.Clear();
+        foreach (var j in biblioteca) listaBiblioteca.Items.Add(j.Nome);
+        listaBiblioteca.EndUpdate();
+        if (biblioteca.Count > 0) listaBiblioteca.SelectedIndex = 0;
+        else MostrarJogo();
+    }
 
-        if (jogos.Count == 0)
+    private void MostrarJogo()
+    {
+        detalheJogo.SuspendLayout();
+        detalheJogo.Controls.Clear();
+        int i = listaBiblioteca.SelectedIndex;
+
+        if (i < 0 || i >= biblioteca.Count)
         {
-            var l = Tema.Rotulo("Não achei CS2, Valorant nem Fortnite instalados.", Tema.Normal, Tema.Apagado);
-            l.Location = new Point(4, 4);
-            listaJogos.Controls.Add(l);
-            listaJogos.ResumeLayout();
+            var vazio = Tema.Rotulo(biblioteca.Count == 0 ? "Não achei jogos instalados (Steam, Epic, Riot, Ubisoft, EA, Battle.net)." : "Escolhe um jogo na lista.",
+                Tema.Normal, Tema.Apagado);
+            vazio.Location = new Point(20, 20);
+            detalheJogo.Controls.Add(vazio);
+            detalheJogo.ResumeLayout();
             return;
         }
 
-        int y = 0;
-        foreach (var j in jogos)
+        var j = biblioteca[i];
+        var c = j.Config;
+        int y = 18;
+
+        Label Add(string texto, Font f, Color cor, int x = 22, int largura = 590)
         {
-            int altura = 70 + j.Dicas.Length * 24 + (j.TemPerfilAutomatico ? 56 : 0);
-            var c = Card(0, y, 876, altura);
+            var l = Tema.Rotulo(texto, f, cor);
+            l.Location = new Point(x, y);
+            l.MaximumSize = new Size(largura, 0);
+            detalheJogo.Controls.Add(l);
+            y += l.PreferredHeight + 6;
+            return l;
+        }
 
-            var nome = Tema.Rotulo(j.Nome, Tema.Subtitulo, Tema.Destaque);
-            nome.Location = new Point(18, 14);
-            c.Controls.Add(nome);
+        Add(j.Nome, Tema.Subtitulo, Tema.Destaque);
+        Add($"{j.Plataforma}  •  {j.Disco}  •  {j.Pasta}", Tema.Pequena, j.Disco == "HD" || j.Disco == "HDD" ? Tema.Amarelo : Tema.Apagado);
+        if (j.Disco == "HDD")
+            Add("⚠ Tá no HD: move pro SSD pelo launcher pra carregar mais rápido e travar menos.", Tema.Pequena, Tema.Amarelo);
+        y += 8;
 
-            var disco = Tema.Rotulo($"{j.Disco}  •  {j.Pasta}", Tema.Pequena, j.Disco == "HDD" ? Tema.Amarelo : Tema.Apagado);
-            disco.Location = new Point(20, 44);
-            c.Controls.Add(disco);
+        if (c == null)
+        {
+            Add("Esse jogo ainda não tem perfil próprio. Dicas competitivas que valem pra quase todo jogo:", Tema.Normal, Tema.Texto);
+            y += 4;
+            foreach (var d in ConfigsCompetitivas.DicasGerais) Add("•  " + d, Tema.Normal, Tema.Texto, 30);
+            y += 10;
+            Add("Quer um perfil completo pra ele? Me fala no chat que eu pesquiso e coloco na próxima atualização.", Tema.Pequena, Tema.Apagado);
+        }
+        else
+        {
+            if (c.Aviso != null) { Add("⚠ " + c.Aviso, Tema.Pequena, Tema.Amarelo); y += 4; }
 
-            int yy = 72;
-            foreach (var d in j.Dicas)
+            Add($"🎯 PRO TEU PC (nível {ConfigsCompetitivas.NomeNivel(nivel)})", new Font("Segoe UI Semibold", 9f), Tema.Apagado);
+            if (c.PorNivel.TryGetValue(nivel, out string doNivel)) Add(doNivel, Tema.Negrito, Tema.Verde, 30);
+            y += 10;
+
+            Add("🎮 NO JOGO", new Font("Segoe UI Semibold", 9f), Tema.Apagado);
+            foreach (var d in c.Jogo) Add("•  " + d, Tema.Normal, Tema.Texto, 30);
+            y += 10;
+
+            Add("💻 NO PC", new Font("Segoe UI Semibold", 9f), Tema.Apagado);
+            Add("•  Clica em OTIMIZAR (ou liga o Modo Competitivo) antes de abrir o jogo", Tema.Normal, Tema.Texto, 30);
+            foreach (var d in c.Pc) Add("•  " + d, Tema.Normal, Tema.Texto, 30);
+
+            if (c.PerfilAutomatico && c.Nome == "Fortnite")
             {
-                var l = Tema.Rotulo("•  " + d, Tema.Normal);
-                l.Location = new Point(20, yy);
-                c.Controls.Add(l);
-                yy += 24;
-            }
-
-            if (j.TemPerfilAutomatico && j.Nome == "Fortnite")
-            {
+                y += 10;
                 bool ativo = Jogos.FortniteEmModoDesempenho();
-                var b = Tema.Botao(ativo ? "✅ Modo Desempenho ativo" : "Aplicar Modo Desempenho", ativo ? Tema.Verde : Tema.Destaque, 240, 38);
-                b.Location = new Point(20, yy + 8);
+                var b = Tema.Botao(ativo ? "✅ Modo Desempenho ativo" : "Aplicar Modo Desempenho", ativo ? Tema.Verde : Tema.Destaque, 250, 38);
+                b.Location = new Point(22, y);
                 b.Click += (_, _) =>
                 {
-                    string msg = Jogos.AplicarPerfilFortnite();
-                    MessageBox.Show(msg, "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    PreencherJogos();
+                    MessageBox.Show(Jogos.AplicarPerfilFortnite(), "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MostrarJogo();
                 };
-                c.Controls.Add(b);
+                detalheJogo.Controls.Add(b);
+                y += 48;
             }
-
-            listaJogos.Controls.Add(c);
-            y += altura + 16;
         }
-        listaJogos.ResumeLayout();
+        detalheJogo.ResumeLayout();
+    }
+
+    // =====================================================================
+    //  Página: Competitivo
+    // =====================================================================
+
+    private Button btnCompetitivo;
+    private readonly Label lblCompStatus = Tema.Rotulo("Desligado", Tema.Subtitulo, Tema.Apagado);
+    private readonly Label lblCompFeito = Tema.Rotulo("", Tema.Normal, Tema.Texto);
+    private readonly Label lblCompJogo = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+    private readonly Label lblConexao = Tema.Rotulo("Ainda não testada.", Tema.Normal, Tema.Apagado);
+    private readonly Label lblConexaoNota = Tema.Rotulo("", new Font("Segoe UI", 20f, FontStyle.Bold), Tema.Apagado);
+    private readonly System.Windows.Forms.Timer timerComp = new() { Interval = 4000 };
+    private ModoCompetitivo.Conexao conexaoAntes;
+
+    private Panel MontarCompetitivo()
+    {
+        var p = NovaPagina("Modo Competitivo",
+            "Liga antes da partida e deixa a SEXTA-FEIRA aberta (pode minimizar). Desliga quando terminar de jogar.");
+
+        var card = Card(30, 104, 900, 270);
+        btnCompetitivo = Tema.Botao("🏆  LIGAR MODO COMPETITIVO", Tema.Destaque, 340, 64);
+        btnCompetitivo.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
+        btnCompetitivo.Location = new Point(24, 24);
+        btnCompetitivo.Click += async (_, _) => await AlternarCompetitivo();
+        card.Controls.Add(btnCompetitivo);
+
+        lblCompStatus.Location = new Point(390, 28);
+        card.Controls.Add(lblCompStatus);
+        lblCompJogo.Location = new Point(392, 62);
+        card.Controls.Add(lblCompJogo);
+
+        var oQueFaz = Tema.Rotulo(
+            "O que ele faz:  otimização completa  •  jogo com prioridade acima do normal  •  navegador, launchers e OneDrive com prioridade baixa\n" +
+            "•  pausa os downloads do Windows Update e a sincronização do OneDrive (são os que mais causam pico de ping)",
+            Tema.Pequena, Tema.Apagado);
+        oQueFaz.Location = new Point(24, 104);
+        oQueFaz.MaximumSize = new Size(850, 0);
+        card.Controls.Add(oQueFaz);
+
+        lblCompFeito.Location = new Point(24, 150);
+        lblCompFeito.MaximumSize = new Size(850, 0);
+        card.Controls.Add(lblCompFeito);
+        p.Controls.Add(card);
+
+        // Conexão
+        var net = Card(30, 390, 900, 230, "Estabilidade da tua internet");
+        lblConexaoNota.Location = new Point(18, 40);
+        net.Controls.Add(lblConexaoNota);
+        lblConexao.Location = new Point(20, 84);
+        lblConexao.MaximumSize = new Size(560, 0);
+        net.Controls.Add(lblConexao);
+
+        var testar = Tema.Botao("Testar conexão", Tema.CardClaro, 170, 36);
+        testar.Location = new Point(710, 40);
+        testar.Click += async (_, _) =>
+        {
+            testar.Enabled = false;
+            await TestarConexao(null);
+            testar.Enabled = true;
+        };
+        net.Controls.Add(testar);
+
+        var verdade = Tema.Rotulo(
+            "Sendo sincero: nenhum programa diminui o ping de verdade, porque ele depende da distância até o servidor e do teu plano de internet. " +
+            "O que dá pra fazer é tirar os PICOS (jitter) causados por coisas baixando escondidas. É isso que o Modo Competitivo faz. " +
+            "Dica de ouro: jogar no cabo em vez do Wi-Fi corta o jitter na hora.",
+            Tema.Pequena, Tema.Apagado);
+        verdade.Location = new Point(20, 150);
+        verdade.MaximumSize = new Size(860, 0);
+        net.Controls.Add(verdade);
+        p.Controls.Add(net);
+
+        timerComp.Tick += (_, _) =>
+        {
+            Task.Run(() => ModoCompetitivo.Atualizar()).ContinueWith(_ => BeginInvoke(new Action(AtualizarTelaCompetitivo)));
+        };
+        return p;
+    }
+
+    private async Task AlternarCompetitivo()
+    {
+        btnCompetitivo.Enabled = false;
+        try
+        {
+            if (!ModoCompetitivo.Ativo)
+            {
+                lblCompStatus.Text = "Ligando...";
+                lblCompStatus.ForeColor = Tema.Destaque;
+                conexaoAntes = await Task.Run(() => ModoCompetitivo.TestarConexao(10));
+                var feito = await Task.Run(() => ModoCompetitivo.Ligar());
+                lblCompFeito.Text = "✅ " + string.Join("\n✅ ", feito);
+                timerComp.Start();
+                await TestarConexao(conexaoAntes);
+            }
+            else
+            {
+                ModoCompetitivo.Desligar();
+                timerComp.Stop();
+                lblCompFeito.Text = "Tudo voltou ao normal. Bom jogo! 🎮";
+            }
+        }
+        catch (Exception ex)
+        {
+            lblCompFeito.Text = "Algo deu errado: " + ex.Message;
+            Atualizador.Log("ERRO no Modo Competitivo: " + ex);
+        }
+        finally
+        {
+            btnCompetitivo.Enabled = true;
+            AtualizarTelaCompetitivo();
+        }
+    }
+
+    private void AtualizarTelaCompetitivo()
+    {
+        bool on = ModoCompetitivo.Ativo;
+        btnCompetitivo.Text = on ? "⏹  DESLIGAR MODO COMPETITIVO" : "🏆  LIGAR MODO COMPETITIVO";
+        btnCompetitivo.BackColor = on ? Tema.Vermelho : Tema.Destaque;
+        btnCompetitivo.ForeColor = on ? Color.White : Color.FromArgb(10, 12, 20);
+        lblCompStatus.Text = on ? "🟢 Ligado" : "Desligado";
+        lblCompStatus.ForeColor = on ? Tema.Verde : Tema.Apagado;
+        lblCompJogo.Text = !on ? "" : ModoCompetitivo.JogoAtual != null
+            ? $"Jogo detectado: {ModoCompetitivo.JogoAtual} (com prioridade)  •  ligado desde {ModoCompetitivo.LigadoEm:HH:mm}"
+            : $"Esperando tu abrir o jogo...  •  ligado desde {ModoCompetitivo.LigadoEm:HH:mm}";
+        abas["competitivo"].Text = on ? "🏆  Competitivo  🟢" : "🏆  Competitivo";
+    }
+
+    private async Task TestarConexao(ModoCompetitivo.Conexao antes)
+    {
+        lblConexaoNota.Text = "Testando...";
+        lblConexaoNota.ForeColor = Tema.Apagado;
+        lblConexao.Text = "Mandando 20 pings...";
+        var c = await Task.Run(() => ModoCompetitivo.TestarConexao());
+        lblConexaoNota.Text = c.Nota();
+        lblConexaoNota.ForeColor = c.Cor();
+        string txt = c.Ok
+            ? $"Ping médio: {c.Media:0} ms  •  Variação (jitter): {c.Jitter:0.0} ms  •  Pacotes perdidos: {c.Perda:0}%"
+            : "Não consegui pingar a internet.";
+        if (antes != null && antes.Ok && c.Ok)
+            txt += $"\nAntes do modo: jitter {antes.Jitter:0.0} ms  →  agora {c.Jitter:0.0} ms";
+        lblConexao.Text = txt;
+        lblConexao.ForeColor = Tema.Texto;
     }
 
     // =====================================================================
@@ -914,6 +1132,8 @@ internal class JanelaPrincipal : Form
         lblSpecs.Text = pc.Resumo();
 
         jogos = await Task.Run(() => Jogos.Detectar());
+        nivel = ConfigsCompetitivas.Nivel(pc.Gpu);
+        biblioteca = await Task.Run(() => Biblioteca.Listar());
         PreencherJogos();
         AtualizarAtalho();
 
