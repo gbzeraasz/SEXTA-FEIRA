@@ -88,6 +88,7 @@ internal class JanelaPrincipal : Form
         paginas["checagem"] = MontarChecagem();
         paginas["jogos"] = MontarJogos();
         paginas["competitivo"] = MontarCompetitivo();
+        paginas["limpeza"] = MontarLimpeza();
         paginas["benchmark"] = MontarBenchmark();
         paginas["pros"] = MontarPros();
         paginas["restauracao"] = MontarRestauracao();
@@ -131,6 +132,7 @@ internal class JanelaPrincipal : Form
     private static readonly ItemMenu[] Menu =
     {
         new("inicio", "⚡  Início"),
+        new("limpeza", "🧹  Limpeza 1 clique"),
         new("g-checagem", "🩺  Checagem", new[] { ("checagem", "Checagem do PC"), ("benchmark", "Benchmark"), ("restauracao", "Ponto de restauração") }),
         new("g-biblioteca", "📚  Biblioteca", new[] { ("jogos", "Meus jogos"), ("pros", "Mira dos pros"), ("competitivo", "Competitivo") }),
         new("ferramentas", "🛠  Ferramentas"),
@@ -387,8 +389,8 @@ internal class JanelaPrincipal : Form
         otim.Controls.Add(btnOtimizar);
 
         var expl = Tema.Rotulo(
-            "Limpa temporários e lixeira, fecha launchers de fundo, liga Modo de Jogo e Alto Desempenho,\n" +
-            "desliga a gravação em segundo plano e libera a RAM em espera. Tudo pode ser desfeito.",
+            "Faz tudo que tu marcou na aba Limpeza 1 clique: limpeza de arquivos, navegadores e apps,\n" +
+            "fecha o que pesa, ajusta o Windows pra jogo e libera a RAM. Os ajustes podem ser desfeitos.",
             Tema.Pequena, Tema.Apagado);
         expl.Location = new Point(344, 24);
         otim.Controls.Add(expl);
@@ -539,6 +541,261 @@ internal class JanelaPrincipal : Form
         {
             Atualizador.Log("ERRO na saúde: " + ex);
         }
+    }
+
+    // =====================================================================
+    //  Página: Limpeza 1 clique
+    // =====================================================================
+
+    private class LinhaLimpeza
+    {
+        public ItemLimpeza Item;
+        public CheckBox Caixa;
+        public Label Tamanho;
+        public Label Status;
+        public Button Botao;
+        public long Bytes = -1;
+    }
+
+    private readonly Panel listaLimpeza = new();
+    private readonly List<LinhaLimpeza> linhasLimpeza = new();
+    private readonly Label lblLimpResumo = Tema.Rotulo("", Tema.Negrito, Tema.Texto);
+    private Button btnLimparSelecionados, btnCalcular;
+    private bool limpando;
+
+    private Panel MontarLimpeza()
+    {
+        var p = NovaPagina("Limpeza 1 clique",
+            "Marca o que tu quer que o botão OTIMIZAR e o raio da barra façam. Fica salvo. Cada item também roda sozinho no botão Executar.");
+
+        lblLimpResumo.Location = new Point(33, 108);
+        p.Controls.Add(lblLimpResumo);
+
+        btnCalcular = Tema.Botao("Calcular tamanhos", Tema.CardClaro, 170, 36);
+        btnCalcular.Location = new Point(530, 100);
+        btnCalcular.Click += async (_, _) => await CalcularTamanhos();
+        p.Controls.Add(btnCalcular);
+
+        btnLimparSelecionados = Tema.Botao("🧹 Limpar selecionados", Tema.Destaque, 220, 36);
+        btnLimparSelecionados.Location = new Point(710, 100);
+        btnLimparSelecionados.Click += async (_, _) => await LimparSelecionados();
+        p.Controls.Add(btnLimparSelecionados);
+
+        listaLimpeza.Location = new Point(30, 150);
+        listaLimpeza.Size = new Size(904, 590);
+        listaLimpeza.BackColor = Tema.Card;
+        listaLimpeza.AutoScroll = true;
+        Tema.Escurecer(listaLimpeza);
+        p.Controls.Add(listaLimpeza);
+        return p;
+    }
+
+    private void PreencherLimpeza()
+    {
+        listaLimpeza.SuspendLayout();
+        listaLimpeza.Controls.Clear();
+        linhasLimpeza.Clear();
+        var cfg = Configuracao.Atual;
+        int y = 10;
+
+        foreach (var grupo in Limpeza.Itens.Where(i => { try { return i.Disponivel(); } catch { return false; } }).GroupBy(i => i.Categoria))
+        {
+            var cab = Tema.Rotulo($"{grupo.Key.ToUpperInvariant()}   {grupo.Count()}", new Font("Segoe UI Semibold", 8.5f), Tema.Apagado);
+            cab.Location = new Point(16, y + 4);
+            listaLimpeza.Controls.Add(cab);
+            y += 30;
+
+            foreach (var item in grupo)
+            {
+                var linha = new LinhaLimpeza { Item = item };
+
+                var caixa = new CheckBox
+                {
+                    Location = new Point(18, y + 18),
+                    Size = new Size(18, 18),
+                    Checked = !item.SoManual && cfg.Marcado(item.Id),
+                    Enabled = !item.SoManual,
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Tema.Card,
+                    Cursor = Cursors.Hand
+                };
+                caixa.FlatAppearance.BorderColor = Tema.Apagado;
+                caixa.FlatAppearance.CheckedBackColor = Tema.Destaque;
+                string id = item.Id;
+                caixa.CheckedChanged += (_, _) => { Configuracao.Atual.Marcar(id, caixa.Checked); AtualizarResumoLimpeza(); };
+                listaLimpeza.Controls.Add(caixa);
+                linha.Caixa = caixa;
+
+                var icone = Tema.Rotulo(item.Icone ?? "•", new Font("Segoe UI Emoji", 15f), Tema.Texto);
+                icone.Location = new Point(46, y + 10);
+                listaLimpeza.Controls.Add(icone);
+
+                var nome = Tema.Rotulo(item.Nome, Tema.Negrito, Tema.Texto);
+                nome.Location = new Point(86, y + 6);
+                listaLimpeza.Controls.Add(nome);
+
+                string prefixo = item.Risco == Risco.Revisao ? "Pede revisão" : item.SoManual ? "Só manual" : null;
+                int xDesc = 88;
+                if (prefixo != null)
+                {
+                    var tag = Tema.Rotulo(prefixo + "  •", Tema.Pequena, Tema.Amarelo);
+                    tag.Location = new Point(88, y + 31);
+                    listaLimpeza.Controls.Add(tag);
+                    xDesc += tag.PreferredWidth + 2;
+                }
+                var desc = Tema.Rotulo(item.Descricao, Tema.Pequena, Tema.Apagado);
+                desc.Location = new Point(xDesc, y + 31);
+                desc.AutoSize = false;
+                desc.Size = new Size(560 - xDesc, 18);
+                desc.AutoEllipsis = true;
+                listaLimpeza.Controls.Add(desc);
+                new ToolTip().SetToolTip(desc, item.Descricao);
+
+                var status = Tema.Rotulo("", Tema.Pequena, Tema.Verde);
+                status.Location = new Point(570, y + 19);
+                listaLimpeza.Controls.Add(status);
+                linha.Status = status;
+
+                var tam = Tema.Rotulo(item.EhAcao ? "" : "...", Tema.Pequena, Tema.Apagado);
+                tam.Location = new Point(690, y + 19);
+                listaLimpeza.Controls.Add(tam);
+                linha.Tamanho = tam;
+
+                var b = Tema.Botao("▶ Executar", Tema.CardClaro, 110, 32);
+                b.Font = Tema.Pequena;
+                b.Location = new Point(772, y + 12);
+                b.Click += async (_, _) => await ExecutarItem(linha);
+                listaLimpeza.Controls.Add(b);
+                linha.Botao = b;
+
+                linhasLimpeza.Add(linha);
+                y += 58;
+            }
+            y += 8;
+        }
+        listaLimpeza.ResumeLayout();
+        AtualizarResumoLimpeza();
+    }
+
+    private void AtualizarResumoLimpeza()
+    {
+        var marcadas = linhasLimpeza.Where(l => l.Caixa.Checked).ToList();
+        long total = marcadas.Where(l => l.Bytes > 0).Sum(l => l.Bytes);
+        lblLimpResumo.Text = $"{marcadas.Count} de {linhasLimpeza.Count(l => !l.Item.SoManual)} marcados no 1 clique" +
+                             (total > 0 ? $"  •  até {Sistema.Formatar(total)} pra liberar" : "");
+    }
+
+    private async Task CalcularTamanhos()
+    {
+        btnCalcular.Enabled = false;
+        foreach (var l in linhasLimpeza.Where(l => !l.Item.EhAcao))
+        {
+            l.Tamanho.Text = "calculando...";
+            var item = l.Item;
+            long t = await Task.Run(() => { try { return item.Tamanho(); } catch { return -1L; } });
+            l.Bytes = t;
+            l.Tamanho.Text = t < 0 ? "varia" : t == 0 ? "vazio" : "até " + Sistema.Formatar(t);
+            l.Tamanho.ForeColor = t > 500L * 1024 * 1024 ? Tema.Amarelo : Tema.Apagado;
+        }
+        AtualizarResumoLimpeza();
+        btnCalcular.Enabled = true;
+    }
+
+    private async Task ExecutarItem(LinhaLimpeza l)
+    {
+        if (limpando) return;
+        var item = l.Item;
+
+        if (item.Risco == Risco.Revisao &&
+            MessageBox.Show($"{item.Nome}\n\n{item.Descricao}\n\nQuer continuar?", "Pede revisão",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+
+        if (Limpeza.EstaAberto(item) && item.Id != "discordsessao" &&
+            MessageBox.Show($"O programa ({item.AvisoAberto}) tá aberto, então alguns arquivos estão em uso.\n\n" +
+                            "Fecha ele pra limpar tudo, ou continua pra limpar só o que der.\n\nContinuar agora?",
+                "SEXTA-FEIRA", MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes) return;
+
+        limpando = true;
+        l.Botao.Enabled = false;
+        l.Botao.Text = "Rodando...";
+        l.Status.ForeColor = Tema.Apagado;
+        l.Status.Text = "";
+        try
+        {
+            string resultado = await Task.Run(() =>
+            {
+                switch (item.Id)
+                {
+                    case "fechar":
+                        var f = Otimizador.FecharProgramas();
+                        return f.Count == 0 ? "✓ nada aberto" : $"✓ {f.Count} fechado(s)";
+                    case "ajustesjogo": Otimizador.AjustesDeJogo(); return "✓ aplicado";
+                    case "energia": return Otimizador.AtivarAltoDesempenho() ? "✓ ativo" : "não deu";
+                    case "ram":
+                        double antes = Otimizador.RamEmEspera();
+                        Otimizador.LiberarRamEmEspera();
+                        Thread.Sleep(600);
+                        return $"✓ {Sistema.Formatar(Math.Max(0, antes - Otimizador.RamEmEspera()))} liberados";
+                    default:
+                        long t = item.Executar();
+                        Atualizador.Log($"Limpeza manual '{item.Id}': {Sistema.Formatar(t)}");
+                        return $"✓ {Sistema.Formatar(t)} liberados";
+                }
+            });
+            l.Status.ForeColor = Tema.Verde;
+            l.Status.Text = resultado;
+            l.Botao.Text = "Concluído";
+            if (!item.EhAcao)
+            {
+                long novo = await Task.Run(() => { try { return item.Tamanho(); } catch { return -1L; } });
+                l.Bytes = novo;
+                l.Tamanho.Text = novo < 0 ? "varia" : novo == 0 ? "vazio" : "até " + Sistema.Formatar(novo);
+            }
+        }
+        catch (Exception ex)
+        {
+            l.Status.ForeColor = Tema.Vermelho;
+            l.Status.Text = "erro";
+            l.Botao.Text = "▶ Executar";
+            Atualizador.Log($"ERRO limpeza '{item.Id}': {ex}");
+        }
+        finally
+        {
+            l.Botao.Enabled = true;
+            limpando = false;
+            AtualizarResumoLimpeza();
+        }
+    }
+
+    private async Task LimparSelecionados()
+    {
+        if (limpando) return;
+        limpando = true;
+        btnLimparSelecionados.Enabled = false;
+        string antes = lblLimpResumo.Text;
+        try
+        {
+            var r = await Task.Run(() => Otimizador.Executar((pct, txt) =>
+                BeginInvoke(new Action(() => lblLimpResumo.Text = $"{pct}%  {txt}"))));
+            lblLimpResumo.Text = "✅ " + r.Frase();
+            foreach (var l in linhasLimpeza.Where(l => l.Caixa.Checked))
+            {
+                l.Status.ForeColor = Tema.Verde;
+                l.Status.Text = "✓ feito";
+                l.Botao.Text = "Concluído";
+            }
+            AtualizarContador();
+        }
+        catch (Exception ex)
+        {
+            lblLimpResumo.Text = "Algo deu errado: " + ex.Message;
+        }
+        finally
+        {
+            limpando = false;
+            btnLimparSelecionados.Enabled = true;
+        }
+        await CalcularTamanhos();
     }
 
     // =====================================================================
@@ -1598,6 +1855,8 @@ internal class JanelaPrincipal : Form
 
         _ = AtualizarSaude();
         _ = CarregarPontos();
+        PreencherLimpeza();
+        _ = CalcularTamanhos();
         timerSaude.Tick += async (_, _) => await AtualizarSaude();
         timerSaude.Start();
 

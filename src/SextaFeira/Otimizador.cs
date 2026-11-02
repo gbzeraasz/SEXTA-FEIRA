@@ -51,44 +51,60 @@ internal static class Otimizador
     {
         var r = new Resultado();
         void P(int pct, string txt) { try { progresso?.Invoke(pct, txt); } catch { } }
+        var cfg = Configuracao.Atual;
 
         r.RamLivreAntes = RamLivre();
 
-        P(5, "Limpando arquivos temporários...");
-        r.DiscoLiberado += LimparTemporarios();
-        r.Feito.Add("Temporários limpos");
+        // 1) Limpezas marcadas na aba "Limpeza 1 clique" (as manuais nunca entram aqui)
+        var limpezas = Limpeza.Itens.Where(i => !i.EhAcao && !i.SoManual && cfg.Marcado(i.Id)).ToList();
+        for (int i = 0; i < limpezas.Count; i++)
+        {
+            var item = limpezas[i];
+            try
+            {
+                if (!item.Disponivel()) continue;
+                P(5 + i * 55 / Math.Max(1, limpezas.Count), item.Nome + "...");
+                long liberado = item.Executar();
+                r.DiscoLiberado += liberado;
+                r.Feito.Add(item.Nome);
+                Atualizador.Log($"Limpeza '{item.Id}': {Sistema.Formatar(liberado)}");
+            }
+            catch (Exception ex) { Atualizador.Log($"ERRO na limpeza '{item.Id}': {ex.Message}"); }
+        }
 
-        P(25, "Esvaziando a lixeira...");
-        r.DiscoLiberado += EsvaziarLixeira();
-        r.Feito.Add("Lixeira esvaziada");
+        // 2) Ações de desempenho
+        if (cfg.Marcado("fechar"))
+        {
+            P(62, "Fechando programas de fundo...");
+            r.Fechados = FecharProgramas();
+        }
+        if (cfg.Marcado("ajustesjogo"))
+        {
+            P(70, "Ajustando o Windows pra jogos...");
+            AjustesDeJogo();
+            r.Feito.Add("Ajustes de jogo do Windows");
+        }
+        if (cfg.Marcado("energia"))
+        {
+            P(78, "Ligando o plano Alto Desempenho...");
+            if (AtivarAltoDesempenho()) r.Feito.Add("Plano Alto Desempenho");
+        }
 
-        P(35, "Limpando lista de recentes...");
-        r.Recentes = LimparRecentes();
-        r.Feito.Add("Recentes limpos");
-
-        P(45, "Fechando programas de fundo...");
-        r.Fechados = FecharProgramas();
-
-        P(55, "Ajustando o Windows pra jogos...");
-        AjustesDeJogo();
-        r.Feito.Add("Modo de Jogo ligado, gravação em segundo plano desligada");
-        r.Feito.Add("Otimizações para jogos em janela ligadas");
-
-        P(70, "Ligando o plano Alto Desempenho...");
-        if (AtivarAltoDesempenho()) r.Feito.Add("Plano Alto Desempenho ativo");
-
-        P(85, "Liberando a RAM em espera...");
-        double emEsperaAntes = RamEmEspera();
-        double livreAntesDaLimpeza = RamLivre();
-        uint status = LiberarRamEmEspera();
-        Thread.Sleep(800);
         r.RamLivreDepois = RamLivre();
-        double emEsperaDepois = RamEmEspera();
-        // O que saiu da lista em espera é o que foi liberado de verdade
-        r.RamLiberada = Math.Max(Math.Max(0, emEsperaAntes - emEsperaDepois), Math.Max(0, r.RamLivreDepois - livreAntesDaLimpeza));
-        Atualizador.Log($"RAM: status=0x{status:X8} emEspera {Sistema.Formatar(emEsperaAntes)} -> {Sistema.Formatar(emEsperaDepois)}, " +
-                        $"livre {Sistema.Formatar(livreAntesDaLimpeza)} -> {Sistema.Formatar(r.RamLivreDepois)}, admin={Sistema.EhAdmin()}");
-        r.Feito.Add("RAM em espera liberada");
+        if (cfg.Marcado("ram"))
+        {
+            P(86, "Liberando a RAM em espera...");
+            double emEsperaAntes = RamEmEspera();
+            double livreAntesDaLimpeza = RamLivre();
+            uint status = LiberarRamEmEspera();
+            Thread.Sleep(800);
+            r.RamLivreDepois = RamLivre();
+            double emEsperaDepois = RamEmEspera();
+            r.RamLiberada = Math.Max(Math.Max(0, emEsperaAntes - emEsperaDepois), Math.Max(0, r.RamLivreDepois - livreAntesDaLimpeza));
+            r.Feito.Add("RAM em espera liberada");
+            Atualizador.Log($"RAM: status=0x{status:X8} emEspera {Sistema.Formatar(emEsperaAntes)} -> {Sistema.Formatar(emEsperaDepois)}, " +
+                            $"livre {Sistema.Formatar(livreAntesDaLimpeza)} -> {Sistema.Formatar(r.RamLivreDepois)}");
+        }
 
         P(100, "Pronto!");
         Historico.Registrar(r);
@@ -97,88 +113,7 @@ internal static class Otimizador
 
     // ---------------- Etapas ----------------
 
-    private static double TamanhoPasta(string pasta)
-    {
-        double total = 0;
-        try
-        {
-            foreach (var f in new DirectoryInfo(pasta).EnumerateFiles("*", new EnumerationOptions
-                     { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 }))
-            {
-                try { total += f.Length; } catch { }
-            }
-        }
-        catch { }
-        return total;
-    }
-
-    private static double LimparTemporarios()
-    {
-        string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string progData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        string windir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-
-        // Cache de shader (D3DSCache, NVIDIA DXCache) NÃO entra: apagar ele causa travadas.
-        string[] pastas =
-        {
-            Path.GetTempPath(),
-            Path.Combine(windir, "Temp"),
-            Path.Combine(local, @"Microsoft\Windows\INetCache"),
-            Path.Combine(local, "CrashDumps"),
-            Path.Combine(progData, @"Microsoft\Windows\WER\ReportQueue"),
-            Path.Combine(progData, @"Microsoft\Windows\WER\ReportArchive")
-        };
-
-        double liberado = 0;
-        foreach (var pasta in pastas)
-        {
-            if (!Directory.Exists(pasta)) continue;
-            double antes = TamanhoPasta(pasta);
-            var dir = new DirectoryInfo(pasta);
-            foreach (var f in SafeEnum(() => dir.EnumerateFiles()))
-                try { f.Attributes = FileAttributes.Normal; f.Delete(); } catch { }
-            foreach (var d in SafeEnum(() => dir.EnumerateDirectories()))
-                try { d.Delete(true); } catch { }
-            liberado += Math.Max(0, antes - TamanhoPasta(pasta));
-        }
-        return liberado;
-    }
-
-    private static IEnumerable<T> SafeEnum<T>(Func<IEnumerable<T>> f)
-    {
-        try { return f().ToList(); } catch { return Enumerable.Empty<T>(); }
-    }
-
-    // Em 64 bits o Windows usa o alinhamento padrão (24 bytes), por isso sem Pack aqui.
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SHQUERYRBINFO { public int cbSize; public long i64Size; public long i64NumItems; }
-
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern int SHQueryRecycleBin(string pszRootPath, ref SHQUERYRBINFO info);
-
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern int SHEmptyRecycleBin(IntPtr hwnd, string pszRootPath, uint flags);
-
-    private static double EsvaziarLixeira()
-    {
-        var info = new SHQUERYRBINFO { cbSize = Marshal.SizeOf<SHQUERYRBINFO>() };
-        SHQueryRecycleBin(null, ref info);
-        // 1 = sem confirmação, 2 = sem barra de progresso, 4 = sem som
-        SHEmptyRecycleBin(IntPtr.Zero, null, 1 | 2 | 4);
-        return info.i64Size;
-    }
-
-    private static int LimparRecentes()
-    {
-        // Só os atalhos da pasta Recent. Os fixados do Acesso Rápido ficam intactos.
-        string pasta = Environment.GetFolderPath(Environment.SpecialFolder.Recent);
-        int n = 0;
-        foreach (var f in SafeEnum(() => Directory.EnumerateFiles(pasta)))
-            try { File.Delete(f); n++; } catch { }
-        return n;
-    }
-
-    private static List<string> FecharProgramas()
+    internal static List<string> FecharProgramas()
     {
         var fechados = new List<string>();
         foreach (var nome in Configuracao.Atual.ProgramasParaFechar)

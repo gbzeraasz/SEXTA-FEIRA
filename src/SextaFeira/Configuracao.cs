@@ -8,6 +8,20 @@ internal class Configuracao
     public List<string> ProgramasParaFechar { get; set; } = Otimizador.ProgramasDeFundo.ToList();
     public bool AtualizarAutomaticamente { get; set; } = true;
 
+    /// <summary>O que o botão OTIMIZAR / raio da barra faz (ids da aba Limpeza 1 clique). null = padrão.</summary>
+    public List<string> UmClique { get; set; }
+
+    public bool Marcado(string id) =>
+        UmClique?.Contains(id) ?? (Limpeza.Pegar(id)?.Padrao ?? false);
+
+    public void Marcar(string id, bool marcado)
+    {
+        UmClique ??= Limpeza.Itens.Where(i => i.Padrao).Select(i => i.Id).ToList();
+        UmClique.Remove(id);
+        if (marcado) UmClique.Add(id);
+        Salvar();
+    }
+
     private static string Arquivo => Path.Combine(Sistema.PastaDados, "config.json");
     private static Configuracao atual;
 
