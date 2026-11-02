@@ -2200,6 +2200,20 @@ internal class JanelaPrincipal : Form
         lblVersao.Text = "v" + Atualizador.VersaoAtual;
         timer.Start();
 
+        // Correção v1.0.15: o mouse deixou de ser marcado por padrão e volta ao normal uma vez
+        var cfg = Configuracao.Atual;
+        if (!cfg.MouseCorrigido)
+        {
+            cfg.MouseCorrigido = true;
+            if (cfg.UmClique != null) cfg.UmClique.Remove("mouse");
+            cfg.Salvar();
+            if (!Ajustes.AceleracaoMouseLigada())
+            {
+                Ajustes.ReativarAceleracaoMouse();
+                Atualizador.Log("Mouse: aceleração reativada pela correção da v1.0.15");
+            }
+        }
+
         // Atualização vem PRIMEIRO e em paralelo com o resto (antes ficava pro final)
         Task tarefaAtualizacao = Configuracao.Atual.AtualizarAutomaticamente ? ProcurarAtualizacao(false) : Task.CompletedTask;
         timerAtualizacao.Tick += async (_, _) => await ProcurarAtualizacao(false);

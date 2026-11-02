@@ -31,6 +31,29 @@ internal static class Ajustes
         try { SystemParametersInfo(SPI_SETMOUSE, 0, new[] { 0, 0, 0 }, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE); } catch { }
     }
 
+    /// <summary>Volta a aceleração do mouse ao que era antes do app (ou ao padrão do Windows).</summary>
+    public static void ReativarAceleracaoMouse()
+    {
+        var originais = Backup.Carregar().Registro.Where(r => r.Caminho == ChaveMouse).ToDictionary(r => r.Nome, r => r.Valor);
+        string vel = originais.GetValueOrDefault("MouseSpeed") ?? "1";
+        string l1 = originais.GetValueOrDefault("MouseThreshold1") ?? "6";
+        string l2 = originais.GetValueOrDefault("MouseThreshold2") ?? "10";
+        if (vel == "0") { vel = "1"; l1 = "6"; l2 = "10"; }
+
+        try
+        {
+            using var k = Registry.CurrentUser.CreateSubKey(@"Control Panel\Mouse", true);
+            k.SetValue("MouseSpeed", vel, RegistryValueKind.String);
+            k.SetValue("MouseThreshold1", l1, RegistryValueKind.String);
+            k.SetValue("MouseThreshold2", l2, RegistryValueKind.String);
+        }
+        catch { }
+        int.TryParse(l1, out int a);
+        int.TryParse(l2, out int b);
+        int.TryParse(vel, out int c);
+        try { SystemParametersInfo(SPI_SETMOUSE, 0, new[] { a, b, c }, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE); } catch { }
+    }
+
     // ================= Suspensão seletiva de USB =================
 
     private const string SubUsb = "2a737441-1930-4402-8d77-b2bebba308a3";

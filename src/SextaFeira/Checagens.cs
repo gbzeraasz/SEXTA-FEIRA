@@ -111,11 +111,11 @@ internal static class Checagens
         l.Add(new Checagem
         {
             Nome = "Aceleração do mouse",
-            Status = acel ? Status.Alerta : Status.Ok,
-            Detalhe = acel ? "Ligada: a mira anda diferente dependendo da velocidade do teu movimento. Pro competitivo, desliga." : "Desligada",
-            Botao = "Desligar",
-            Automatica = true,
-            Acao = () => { Ajustes.DesligarAceleracaoMouse(); return null; }
+            Status = Status.Info,
+            Detalhe = acel ? "Ligada (padrão do Windows). CS2, Valorant e Fortnite já ignoram ela, então é gosto pessoal."
+                           : "Desligada: o cursor fica mais rápido em movimentos lentos. Os jogos competitivos não são afetados.",
+            Botao = acel ? "Desligar" : "Reativar",
+            Acao = () => { if (acel) Ajustes.DesligarAceleracaoMouse(); else Ajustes.ReativarAceleracaoMouse(); return null; }
         });
 
         int usb = Ajustes.UsbSeletivaAtual();

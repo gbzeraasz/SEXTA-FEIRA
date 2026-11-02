@@ -358,8 +358,8 @@ internal static class Limpeza
             },
             new()
             {
-                Id = "mouse", Nome = "Desligar aceleração do mouse", Icone = "🖱", Categoria = "Desempenho", Padrao = true, EhAcao = true,
-                Descricao = "'Aumentar precisão do ponteiro' desligado: o mesmo movimento sempre move a mira o mesmo tanto.",
+                Id = "mouse", Nome = "Desligar aceleração do mouse", Icone = "🖱", Categoria = "Desempenho", EhAcao = true,
+                Descricao = "Só muda o cursor da área de trabalho (CS2, Valorant e Fortnite já ignoram). O cursor vai parecer mais rápido.",
                 Executar = () => 0
             },
             new()

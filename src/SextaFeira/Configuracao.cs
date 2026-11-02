@@ -11,6 +11,9 @@ internal class Configuracao
     /// <summary>Modo Competitivo: limpa a RAM em espera sozinho durante a partida quando a RAM livre fica baixa.</summary>
     public bool RamContinua { get; set; } = true;
 
+    /// <summary>Marca que a correção do mouse (v1.0.15) já rodou.</summary>
+    public bool MouseCorrigido { get; set; }
+
     /// <summary>O que o botão OTIMIZAR / raio da barra faz (ids da aba Limpeza 1 clique). null = padrão.</summary>
     public List<string> UmClique { get; set; }
 

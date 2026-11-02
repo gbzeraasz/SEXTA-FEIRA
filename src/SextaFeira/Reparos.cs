@@ -166,6 +166,16 @@ internal static class Reparos
         },
         new Reparo
         {
+            Id = "mouse", Nome = "Mouse rápido ou estranho", Icone = "🖱", Duracao = "instantâneo",
+            Descricao = "Volta a aceleração do mouse ('Aumentar precisão do ponteiro') ao que era antes.",
+            Executar = () =>
+            {
+                Ajustes.ReativarAceleracaoMouse();
+                return "Mouse de volta ao normal. Se ainda estiver rápido, ajusta em Configurações → Bluetooth e dispositivos → Mouse → Velocidade do ponteiro.";
+            }
+        },
+        new Reparo
+        {
             Id = "desligar", Nome = "PC não desliga direito", Icone = "⏻", Duracao = "instantâneo", Revisao = true,
             Descricao = "Desliga a 'Inicialização rápida', que costuma travar o desligamento e causar bug ao ligar. O PC pode ligar 1 a 2 segundos mais devagar.",
             Aviso = "O PC pode ligar 1 a 2 segundos mais devagar. Dá pra desfazer em Ferramentas → Desfazer mudanças.",
