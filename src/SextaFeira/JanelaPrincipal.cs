@@ -27,7 +27,10 @@ internal class JanelaPrincipal : Form
     private readonly BarraUso barRam = new() { Nome = "RAM" };
     private readonly BarraUso barGpu = new() { Nome = "GPU" };
     private readonly Label lblTop = Tema.Rotulo("...", Tema.Mono, Tema.Texto);
-    private Button btnOtimizar;
+    private BotaoHud btnOtimizar;
+    private readonly Nucleo nucleo = new();
+    private readonly Label lblLegenda = new();
+    private readonly Label lblSaudacao = new();
     private readonly Label lblStatus = Tema.Rotulo("", Tema.Negrito, Tema.Destaque);
     private readonly Label lblResultado = Tema.Rotulo("Clica em OTIMIZAR antes de abrir o jogo.", Tema.Normal, Tema.Apagado);
     private readonly Label lblContador = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
@@ -99,8 +102,30 @@ internal class JanelaPrincipal : Form
         Mostrar("inicio");
 
         timer.Tick += async (_, _) => await AtualizarMonitor();
-        Shown += async (_, _) => await Carregar();
+        Shown += async (_, _) =>
+        {
+            MostrarBoot();
+            await Carregar();
+        };
         FormClosing += (_, _) => { timer.Stop(); timerAtualizacao.Stop(); timerSaude.Stop(); Saude.Salvar(); timerComp.Stop(); ModoCompetitivo.Desligar(); };
+    }
+
+    private void MostrarBoot()
+    {
+        var boot = new BootHud(new[]
+        {
+            "carregando núcleo...",
+            "sensores online",
+            "lendo hardware e jogos",
+            "sistema pronto. bom jogo."
+        });
+        boot.Terminou += (_, _) =>
+        {
+            Controls.Remove(boot);
+            boot.Dispose();
+        };
+        Controls.Add(boot);
+        boot.BringToFront();
     }
 
     [DllImport("dwmapi.dll")]
@@ -335,97 +360,152 @@ internal class JanelaPrincipal : Form
     //  Página: Início
     // =====================================================================
 
+    private static Label RotuloHud(string txt, Font f, Color cor)
+    {
+        var l = Tema.Rotulo(txt, f, cor);
+        l.BackColor = Color.Transparent;
+        return l;
+    }
+
     private Panel MontarInicio()
     {
-        var p = NovaPagina("Pronto pra jogar?", null);
-        p.AutoScroll = false; // tudo cabe na tela, sem barra de rolagem
-        lblSpecs.Location = new Point(33, 70);
-        lblSpecs.MaximumSize = new Size(LarguraUtil, 0);
-        p.Controls.Add(lblSpecs);
+        // Tela inicial no estilo HUD holográfico: núcleo no centro, painéis dos lados
+        var p = new PainelHud { Dock = DockStyle.Fill };
 
-        // ---------- Nota ----------
-        var nota = Card(30, 100, 270, 200, "Teu PC está");
-        lblNota.Location = new Point(14, 34);
-        nota.Controls.Add(lblNota);
-        lblNotaTxt.Location = new Point(20, 100);
-        lblNotaTxt.MaximumSize = new Size(236, 0);
-        nota.Controls.Add(lblNotaTxt);
-        var verFalta = Tema.Botao("Ver o que falta", Tema.CardClaro, 150, 30);
-        verFalta.Font = Tema.Pequena;
-        verFalta.Location = new Point(18, 156);
-        verFalta.Click += (_, _) => Mostrar("checagem");
-        nota.Controls.Add(verFalta);
-        p.Controls.Add(nota);
+        string Saudacao() => DateTime.Now.Hour < 12 ? "BOM DIA" : DateTime.Now.Hour < 18 ? "BOA TARDE" : "BOA NOITE";
+        lblSaudacao.Text = $"{Saudacao()}  •  SISTEMA ONLINE";
+        lblSaudacao.Font = Hud.Titulo(9f, FontStyle.Bold);
+        lblSaudacao.ForeColor = Hud.Ciano;
+        lblSaudacao.BackColor = Color.Transparent;
+        lblSaudacao.AutoSize = true;
+        lblSaudacao.Location = new Point(22, 20);
+        p.Controls.Add(lblSaudacao);
 
-        // ---------- Ao vivo ----------
-        var vivo = Card(315, 100, 300, 200, "Ao vivo");
-        int y = 40;
-        foreach (var b in new[] { barCpu, barRam, barGpu })
-        {
-            b.Location = new Point(18, y);
-            b.Width = 264;
-            vivo.Controls.Add(b);
-            y += 50;
-        }
-        p.Controls.Add(vivo);
+        var titulo = RotuloHud("SEXTA-FEIRA", Hud.Titulo(24f, FontStyle.Bold), Tema.Texto);
+        titulo.Location = new Point(18, 38);
+        p.Controls.Add(titulo);
 
-        // ---------- Temperatura ----------
-        var temp = Card(630, 100, 300, 200, "Temperatura da placa de vídeo");
-        lblTemp.Location = new Point(14, 32);
+        // ================= coluna esquerda =================
+        var temp = new CardHud { Titulo = "Temperatura · GPU", Location = new Point(20, 96), Size = new Size(270, 196) };
+        lblTemp.Font = Hud.Titulo(30f, FontStyle.Bold);
+        lblTemp.BackColor = Color.Transparent;
+        lblTemp.Location = new Point(14, 44);
         temp.Controls.Add(lblTemp);
-        lblTempInfo.Location = new Point(150, 44);
+        lblTempInfo.Font = Hud.Mono(8.5f);
+        lblTempInfo.BackColor = Color.Transparent;
+        lblTempInfo.Location = new Point(150, 50);
         temp.Controls.Add(lblTempInfo);
-        lblTempExplica.Location = new Point(20, 96);
-        lblTempExplica.MaximumSize = new Size(264, 0);
+        lblTempExplica.BackColor = Color.Transparent;
+        lblTempExplica.Location = new Point(18, 104);
+        lblTempExplica.MaximumSize = new Size(236, 0);
         temp.Controls.Add(lblTempExplica);
-        var faixas = Tema.Rotulo("até 50° parada  •  até 75° jogando  •  83°+ perde FPS", new Font("Segoe UI", 7.5f), Tema.Apagado);
-        faixas.Location = new Point(20, 176);
+        var faixas = RotuloHud("50° parada  •  75° jogando  •  83°+ perde FPS", Hud.Mono(7f), Tema.Apagado);
+        faixas.Location = new Point(18, 170);
         temp.Controls.Add(faixas);
         p.Controls.Add(temp);
 
-        // ---------- Otimizar ----------
-        var otim = Card(30, 314, 900, 196);
-        btnOtimizar = Tema.Botao("⚡  OTIMIZAR AGORA", Tema.Destaque, 300, 60);
-        btnOtimizar.Font = new Font("Segoe UI", 14f, FontStyle.Bold);
-        btnOtimizar.Location = new Point(24, 22);
-        btnOtimizar.Click += async (_, _) => await Otimizar();
-        otim.Controls.Add(btnOtimizar);
-
-        var expl = Tema.Rotulo(
-            "Faz tudo que tu marcou na aba Limpeza 1 clique: limpeza de arquivos, navegadores e apps,\n" +
-            "fecha o que pesa, ajusta o Windows pra jogo e libera a RAM. Os ajustes podem ser desfeitos.",
-            Tema.Pequena, Tema.Apagado);
-        expl.Location = new Point(344, 24);
-        otim.Controls.Add(expl);
-
-        lblStatus.Location = new Point(344, 64);
-        otim.Controls.Add(lblStatus);
-
-        lblResultado.Location = new Point(24, 98);
-        lblResultado.MaximumSize = new Size(850, 0);
-        otim.Controls.Add(lblResultado);
-
-        lblContador.Location = new Point(24, 166);
-        otim.Controls.Add(lblContador);
-        p.Controls.Add(otim);
-
-        // ---------- Saúde ----------
-        var saude = Card(30, 524, 440, 216, "Saúde do PC");
-        lblSaudeTitulo.Location = new Point(18, 38);
+        var saude = new CardHud { Titulo = "Saúde do sistema", Location = new Point(20, 304), Size = new Size(270, 248) };
+        lblSaudeTitulo.BackColor = Color.Transparent;
+        lblSaudeTitulo.Location = new Point(18, 46);
+        lblSaudeTitulo.MaximumSize = new Size(236, 0);
         saude.Controls.Add(lblSaudeTitulo);
-        lblSaudeDet.Location = new Point(18, 62);
-        lblSaudeDet.MaximumSize = new Size(404, 145);
+        lblSaudeDet.BackColor = Color.Transparent;
+        lblSaudeDet.Location = new Point(18, 72);
+        lblSaudeDet.MaximumSize = new Size(236, 168);
         saude.Controls.Add(lblSaudeDet);
         p.Controls.Add(saude);
 
-        // ---------- O que mais pesa ----------
-        var top = Card(490, 524, 440, 216, "O que mais está usando RAM");
-        lblTop.Location = new Point(18, 40);
-        lblTop.AutoSize = false;
-        lblTop.Size = new Size(404, 165);
-        top.Controls.Add(lblTop);
-        p.Controls.Add(top);
+        var sistema = new CardHud { Titulo = "Hardware", Location = new Point(20, 564), Size = new Size(270, 176) };
+        lblSpecs.BackColor = Color.Transparent;
+        lblSpecs.Font = Hud.Mono(8.5f);
+        lblSpecs.ForeColor = Tema.Texto;
+        lblSpecs.Location = new Point(18, 46);
+        lblSpecs.MaximumSize = new Size(240, 0);
+        sistema.Controls.Add(lblSpecs);
+        p.Controls.Add(sistema);
 
+        // ================= centro: núcleo =================
+        nucleo.Location = new Point(300, 84);
+        nucleo.Size = new Size(360, 360);
+        nucleo.CliqueCentro += async (_, _) => await Otimizar();
+        p.Controls.Add(nucleo);
+
+        lblLegenda.Font = Hud.Mono(8.5f);
+        lblLegenda.ForeColor = Hud.Alfa(Hud.Ciano, 220);
+        lblLegenda.BackColor = Color.Transparent;
+        lblLegenda.AutoSize = false;
+        lblLegenda.TextAlign = ContentAlignment.MiddleCenter;
+        lblLegenda.Location = new Point(300, 446);
+        lblLegenda.Size = new Size(360, 18);
+        lblLegenda.Text = "CPU --  •  RAM --  •  GPU --";
+        p.Controls.Add(lblLegenda);
+
+        btnOtimizar = new BotaoHud { Text = "OTIMIZAR AGORA", Icone = "⚡", Cheio = true, Location = new Point(330, 474), Size = new Size(300, 52) };
+        btnOtimizar.Font = Hud.Titulo(13f, FontStyle.Bold);
+        btnOtimizar.Click += async (_, _) => await Otimizar();
+        p.Controls.Add(btnOtimizar);
+
+        lblStatus.BackColor = Color.Transparent;
+        lblStatus.Font = Hud.Mono(8.5f);
+        lblStatus.AutoSize = false;
+        lblStatus.TextAlign = ContentAlignment.MiddleCenter;
+        lblStatus.Location = new Point(300, 532);
+        lblStatus.Size = new Size(360, 20);
+        p.Controls.Add(lblStatus);
+
+        lblResultado.BackColor = Color.Transparent;
+        lblResultado.AutoSize = false;
+        lblResultado.TextAlign = ContentAlignment.TopCenter;
+        lblResultado.Location = new Point(300, 556);
+        lblResultado.Size = new Size(360, 130);
+        lblResultado.Text = "Clica no núcleo ou no botão antes de abrir o jogo.";
+        p.Controls.Add(lblResultado);
+
+        lblContador.BackColor = Color.Transparent;
+        lblContador.Font = Hud.Mono(7.5f);
+        lblContador.AutoSize = false;
+        lblContador.TextAlign = ContentAlignment.MiddleCenter;
+        lblContador.Location = new Point(300, 700);
+        lblContador.Size = new Size(360, 36);
+        p.Controls.Add(lblContador);
+
+        // ================= coluna direita =================
+        var status = new CardHud { Titulo = "Status", Location = new Point(670, 96), Size = new Size(270, 150) };
+        lblNotaTxt.BackColor = Color.Transparent;
+        lblNotaTxt.Location = new Point(18, 46);
+        lblNotaTxt.MaximumSize = new Size(236, 0);
+        status.Controls.Add(lblNotaTxt);
+        var verFalta = new BotaoHud { Text = "VER O QUE FALTA", Location = new Point(18, 104), Size = new Size(170, 32) };
+        verFalta.Font = Hud.Titulo(8.5f, FontStyle.Bold);
+        verFalta.Click += (_, _) => Mostrar("checagem");
+        status.Controls.Add(verFalta);
+        p.Controls.Add(status);
+
+        var procs = new CardHud { Titulo = "Processos · RAM", Location = new Point(670, 258), Size = new Size(270, 230) };
+        lblTop.BackColor = Color.Transparent;
+        lblTop.Font = Hud.Mono(8f);
+        lblTop.Location = new Point(16, 46);
+        lblTop.AutoSize = false;
+        lblTop.Size = new Size(244, 176);
+        procs.Controls.Add(lblTop);
+        p.Controls.Add(procs);
+
+        var atalhos = new CardHud { Titulo = "Acesso rápido", Location = new Point(670, 500), Size = new Size(270, 240) };
+        int y = 48;
+        foreach (var (txt, icone, destino) in new[]
+                 {
+                     ("MODO COMPETITIVO", "🏆", "competitivo"), ("LIMPEZA 1 CLIQUE", "🧹", "limpeza"),
+                     ("INTERNET", "🌐", "internet"), ("BENCHMARK", "📊", "benchmark")
+                 })
+        {
+            var b = new BotaoHud { Text = txt, Icone = icone, Location = new Point(18, y), Size = new Size(234, 38) };
+            b.Font = Hud.Titulo(9f, FontStyle.Bold);
+            string d = destino;
+            b.Click += (_, _) => Mostrar(d);
+            atalhos.Controls.Add(b);
+            y += 46;
+        }
+        p.Controls.Add(atalhos);
         return p;
     }
 
@@ -434,7 +514,9 @@ internal class JanelaPrincipal : Form
         if (ocupado) return;
         ocupado = true;
         btnOtimizar.Enabled = false;
-        btnOtimizar.Text = "Otimizando...";
+        btnOtimizar.Text = "OTIMIZANDO...";
+        nucleo.Otimizando = true;
+        nucleo.Progresso = 0;
         lblResultado.ForeColor = Tema.Apagado;
 
         try
@@ -450,8 +532,10 @@ internal class JanelaPrincipal : Form
             }
 
             var r = await Task.Run(() => Otimizador.Executar((pct, txt) =>
-                BeginInvoke(new Action(() => lblStatus.Text = $"{pct}%  {txt}"))));
+                BeginInvoke(new Action(() => { lblStatus.Text = $"{pct}%  {txt}"; nucleo.Progresso = pct; }))));
 
+            nucleo.Otimizando = false;
+            nucleo.Pulsar();
             lblResultado.ForeColor = Tema.Texto;
             lblResultado.Text = "✅ " + r.Frase() + "\n" + string.Join("  •  ", r.Feito);
             AtualizarContador();
@@ -463,8 +547,9 @@ internal class JanelaPrincipal : Form
         }
         finally
         {
-            btnOtimizar.Text = "⚡  OTIMIZAR AGORA";
+            btnOtimizar.Text = "OTIMIZAR AGORA";
             btnOtimizar.Enabled = true;
+            nucleo.Otimizando = false;
             ocupado = false;
         }
         _ = RodarChecagem();
@@ -494,6 +579,8 @@ internal class JanelaPrincipal : Form
                 return (leitura, gpu);
             });
 
+            nucleo.Definir(l.Cpu, l.Ram, g.Uso >= 0 ? g.Uso : l.Gpu);
+            lblLegenda.Text = $"CPU {Math.Max(0, l.Cpu):0}%  •  RAM {Math.Max(0, l.Ram):0}%  •  GPU {Math.Max(0, g.Uso >= 0 ? g.Uso : l.Gpu):0}%";
             barCpu.Valor = l.Cpu;
             barRam.Valor = l.Ram;
             barGpu.Valor = g.Uso >= 0 ? g.Uso : l.Gpu;
@@ -889,9 +976,10 @@ internal class JanelaPrincipal : Form
         int alertas = checagens.Count(c => c.Status == Status.Alerta);
         int nota = Checagens.Nota(checagens);
         lblNota.Text = $"{nota}%";
+        nucleo.Nota = nota;
         lblNota.ForeColor = nota >= 90 ? Tema.Verde : nota >= 70 ? Tema.Destaque : Tema.Amarelo;
-        lblNotaTxt.Text = nota >= 100 ? "otimizado. Tudo no ponto pra jogar! 🔥"
-            : $"otimizado. {alertas} coisa(s) pra arrumar na aba Checagem" +
+        lblNotaTxt.Text = nota >= 100 ? "Tudo no ponto pra jogar! 🔥"
+            : $"{nota}% otimizado. {alertas} coisa(s) pra arrumar na Checagem" +
               (checagens.Any(c => c.Status == Status.Alerta && c.Acao == null) ? " (algumas só na BIOS ou no hardware)." : ".");
         lblResumoChecagem.Text = alertas == 0 ? "✅ Tudo certo no teu PC!" : $"⚠ {alertas} ponto(s) de atenção";
         lblResumoChecagem.ForeColor = alertas == 0 ? Tema.Verde : Tema.Amarelo;
@@ -2230,7 +2318,7 @@ internal class JanelaPrincipal : Form
         timerSaude.Start();
 
         pc = await Task.Run(() => InfoPC.Ler());
-        lblSpecs.Text = pc.Resumo();
+        lblSpecs.Text = $"CPU  {pc.Cpu}\n\nGPU  {pc.Gpu}\n\nRAM  {pc.RamGB} GB · {pc.Pentes}x · {pc.RamMHz} MHz\n\nOS   {pc.Windows}";
 
         jogos = await Task.Run(() => Jogos.Detectar());
         nivel = ConfigsCompetitivas.Nivel(pc.Gpu);
