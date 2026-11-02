@@ -16,13 +16,14 @@ internal static class Otimizador
         public int Recentes;
         public double RamLivreAntes;
         public double RamLivreDepois;
+        public double RamLiberada;
         public List<string> Fechados = new();
         public List<string> Feito = new();
 
         /// <summary>Uma frase só, pra notificação do botão da barra.</summary>
         public string Frase()
         {
-            double ram = Math.Max(0, RamLivreDepois - RamLivreAntes);
+            double ram = RamLiberada;
             string f = $"Liberei {Sistema.Formatar(DiscoLiberado)} de disco e {Sistema.Formatar(ram)} de RAM";
             if (Fechados.Count > 0) f += $" e fechei {Fechados.Count} programa(s)";
             return f + ".";
@@ -77,9 +78,16 @@ internal static class Otimizador
         if (AtivarAltoDesempenho()) r.Feito.Add("Plano Alto Desempenho ativo");
 
         P(85, "Liberando a RAM em espera...");
-        LiberarRamEmEspera();
-        Thread.Sleep(600);
+        double emEsperaAntes = RamEmEspera();
+        double livreAntesDaLimpeza = RamLivre();
+        uint status = LiberarRamEmEspera();
+        Thread.Sleep(800);
         r.RamLivreDepois = RamLivre();
+        double emEsperaDepois = RamEmEspera();
+        // O que saiu da lista em espera é o que foi liberado de verdade
+        r.RamLiberada = Math.Max(Math.Max(0, emEsperaAntes - emEsperaDepois), Math.Max(0, r.RamLivreDepois - livreAntesDaLimpeza));
+        Atualizador.Log($"RAM: status=0x{status:X8} emEspera {Sistema.Formatar(emEsperaAntes)} -> {Sistema.Formatar(emEsperaDepois)}, " +
+                        $"livre {Sistema.Formatar(livreAntesDaLimpeza)} -> {Sistema.Formatar(r.RamLivreDepois)}, admin={Sistema.EhAdmin()}");
         r.Feito.Add("RAM em espera liberada");
 
         P(100, "Pronto!");
@@ -257,12 +265,23 @@ internal static class Otimizador
     [DllImport("advapi32.dll", SetLastError = true)] private static extern bool AdjustTokenPrivileges(IntPtr tok, bool dis, ref TOKEN_PRIVILEGES ns, int len, IntPtr prev, IntPtr ret);
     [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr h);
 
-    /// <summary>Esvazia a lista "em espera" da RAM (o que o Windows guardou em cache).</summary>
-    private static void LiberarRamEmEspera()
+    /// <summary>RAM "em espera" (cache do Windows), somando as 3 prioridades.</summary>
+    public static double RamEmEspera()
+    {
+        var o = Sistema.Wmi("SELECT StandbyCacheCoreBytes, StandbyCacheNormalPriorityBytes, StandbyCacheReserveBytes FROM Win32_PerfRawData_PerfOS_Memory").FirstOrDefault();
+        if (o == null) return 0;
+        double total = 0;
+        foreach (var campo in new[] { "StandbyCacheCoreBytes", "StandbyCacheNormalPriorityBytes", "StandbyCacheReserveBytes" })
+            if (double.TryParse(Sistema.WmiTexto(o, campo), out double v)) total += v;
+        return total;
+    }
+
+    /// <summary>Esvazia a lista "em espera" da RAM. Retorna o código do Windows (0 = deu certo).</summary>
+    private static uint LiberarRamEmEspera()
     {
         try
         {
-            if (!OpenProcessToken(Process.GetCurrentProcess().Handle, 0x28, out IntPtr tok)) return;
+            if (!OpenProcessToken(Process.GetCurrentProcess().Handle, 0x28, out IntPtr tok)) return 0xFFFFFFFF;
             var tp = new TOKEN_PRIVILEGES { Count = 1, Attr = 2 };
             LookupPrivilegeValue(null, "SeProfileSingleProcessPrivilege", out tp.Luid);
             AdjustTokenPrivileges(tok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
@@ -271,8 +290,8 @@ internal static class Otimizador
             int cmd = 3; // grava a lista modificada
             NtSetSystemInformation(80, ref cmd, 4);
             cmd = 4;     // esvazia a lista em espera
-            NtSetSystemInformation(80, ref cmd, 4);
+            return NtSetSystemInformation(80, ref cmd, 4);
         }
-        catch { }
+        catch { return 0xFFFFFFFE; }
     }
 }

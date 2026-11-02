@@ -17,6 +17,14 @@ internal class Checagem
 /// <summary>Tudo que o app confere no PC. Baseado na pesquisa: só itens com efeito comprovado.</summary>
 internal static class Checagens
 {
+    /// <summary>Nota de 0 a 100: itens OK sobre os que contam (os "Info" são escolha tua e não pesam).</summary>
+    public static int Nota(List<Checagem> lista)
+    {
+        var contam = lista.Where(c => c.Status != Status.Info).ToList();
+        if (contam.Count == 0) return 100;
+        return (int)Math.Round(contam.Count(c => c.Status == Status.Ok) * 100.0 / contam.Count);
+    }
+
     public static List<Checagem> Rodar(InfoPC pc, List<Jogos.Jogo> jogos)
     {
         var l = new List<Checagem>();

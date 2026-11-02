@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Velopack;
 
 namespace SextaFeira;
@@ -30,6 +31,19 @@ internal class JanelaPrincipal : Form
     private readonly Label lblStatus = Tema.Rotulo("", Tema.Negrito, Tema.Destaque);
     private readonly Label lblResultado = Tema.Rotulo("Clica em OTIMIZAR antes de abrir o jogo.", Tema.Normal, Tema.Apagado);
     private readonly Label lblContador = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+    private readonly Label lblNota = Tema.Rotulo("--%", new Font("Segoe UI", 38f, FontStyle.Bold), Tema.Destaque);
+    private readonly Label lblNotaTxt = Tema.Rotulo("analisando...", Tema.Pequena, Tema.Apagado);
+    private readonly Label lblTemp = Tema.Rotulo("-- °C", new Font("Segoe UI", 32f, FontStyle.Bold), Tema.Apagado);
+    private readonly Label lblTempInfo = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+    private readonly Label lblTempExplica = Tema.Rotulo("Lendo o sensor...", Tema.Pequena, Tema.Texto);
+    private readonly Label lblSaudeTitulo = Tema.Rotulo("Analisando...", Tema.Negrito, Tema.Destaque);
+    private readonly Label lblSaudeDet = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+
+    // ---------- restauração ----------
+    private readonly Panel listaPontos = new();
+    private readonly TextBox txtPonto = new();
+    private readonly Label lblPontoStatus = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+    private Button btnCriarPonto;
 
     // ---------- checagem ----------
     private readonly Panel listaChecagem = new();
@@ -46,6 +60,7 @@ internal class JanelaPrincipal : Form
 
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 2000 };
     // Procura atualização de novo a cada 30 minutos enquanto o app estiver aberto
+    private readonly System.Windows.Forms.Timer timerSaude = new() { Interval = 5 * 60 * 1000 };
     private readonly System.Windows.Forms.Timer timerAtualizacao = new() { Interval = 30 * 60 * 1000 };
 
     public JanelaPrincipal()
@@ -73,13 +88,35 @@ internal class JanelaPrincipal : Form
         paginas["inicio"] = MontarInicio();
         paginas["checagem"] = MontarChecagem();
         paginas["jogos"] = MontarJogos();
+        paginas["restauracao"] = MontarRestauracao();
         paginas["ferramentas"] = MontarFerramentas();
         foreach (var p in paginas.Values) conteudo.Controls.Add(p);
         Mostrar("inicio");
 
         timer.Tick += async (_, _) => await AtualizarMonitor();
         Shown += async (_, _) => await Carregar();
-        FormClosing += (_, _) => { timer.Stop(); timerAtualizacao.Stop(); };
+        FormClosing += (_, _) => { timer.Stop(); timerAtualizacao.Stop(); timerSaude.Stop(); Saude.Salvar(); };
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int atributo, ref int valor, int tamanho);
+
+    /// <summary>Deixa a barra de título escura, combinando com o app (sem a faixa branca).</summary>
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        try
+        {
+            int sim = 1;
+            DwmSetWindowAttribute(Handle, 20, ref sim, 4);                 // modo escuro
+            int fundo = Tema.Lateral.R | (Tema.Lateral.G << 8) | (Tema.Lateral.B << 16);
+            DwmSetWindowAttribute(Handle, 35, ref fundo, 4);               // cor da barra (Windows 11)
+            int texto = Tema.Texto.R | (Tema.Texto.G << 8) | (Tema.Texto.B << 16);
+            DwmSetWindowAttribute(Handle, 36, ref texto, 4);               // cor do título
+            int borda = fundo;
+            DwmSetWindowAttribute(Handle, 34, ref borda, 4);               // cor da borda
+        }
+        catch { }
     }
 
     // =====================================================================
@@ -101,7 +138,7 @@ internal class JanelaPrincipal : Form
 
         int y = 120;
         foreach (var (chave, texto) in new[]
-                 { ("inicio", "⚡  Início"), ("checagem", "🩺  Checagem"), ("jogos", "🎮  Jogos"), ("ferramentas", "🛠  Ferramentas") })
+                 { ("inicio", "⚡  Início"), ("checagem", "🩺  Checagem"), ("jogos", "🎮  Jogos"), ("restauracao", "🛟  Restauração"), ("ferramentas", "🛠  Ferramentas") })
         {
             var b = new Button
             {
@@ -226,31 +263,51 @@ internal class JanelaPrincipal : Form
         lblSpecs.MaximumSize = new Size(LarguraUtil, 0);
         p.Controls.Add(lblSpecs);
 
-        // Card ao vivo
-        var vivo = Card(30, 110, 440, 210, "Ao vivo");
+        // ---------- Nota ----------
+        var nota = Card(30, 104, 270, 220, "Teu PC está");
+        lblNota.Location = new Point(14, 36);
+        nota.Controls.Add(lblNota);
+        lblNotaTxt.Location = new Point(20, 104);
+        lblNotaTxt.MaximumSize = new Size(236, 0);
+        nota.Controls.Add(lblNotaTxt);
+        var verFalta = Tema.Botao("Ver o que falta", Tema.CardClaro, 150, 32);
+        verFalta.Font = Tema.Pequena;
+        verFalta.Location = new Point(18, 172);
+        verFalta.Click += (_, _) => Mostrar("checagem");
+        nota.Controls.Add(verFalta);
+        p.Controls.Add(nota);
+
+        // ---------- Ao vivo ----------
+        var vivo = Card(315, 104, 300, 220, "Ao vivo");
         int y = 44;
         foreach (var b in new[] { barCpu, barRam, barGpu })
         {
             b.Location = new Point(18, y);
-            b.Width = 404;
+            b.Width = 264;
             vivo.Controls.Add(b);
-            y += 52;
+            y += 54;
         }
         p.Controls.Add(vivo);
 
-        // Card o que mais pesa
-        var top = Card(490, 110, 440, 210, "O que mais está usando RAM");
-        lblTop.Location = new Point(18, 44);
-        lblTop.AutoSize = false;
-        lblTop.Size = new Size(404, 150);
-        top.Controls.Add(lblTop);
-        p.Controls.Add(top);
+        // ---------- Temperatura ----------
+        var temp = Card(630, 104, 300, 220, "Temperatura da placa de vídeo");
+        lblTemp.Location = new Point(14, 36);
+        temp.Controls.Add(lblTemp);
+        lblTempInfo.Location = new Point(150, 50);
+        temp.Controls.Add(lblTempInfo);
+        lblTempExplica.Location = new Point(20, 104);
+        lblTempExplica.MaximumSize = new Size(264, 0);
+        temp.Controls.Add(lblTempExplica);
+        var faixas = Tema.Rotulo("até 50° parada  •  até 75° jogando  •  83°+ perde FPS", new Font("Segoe UI", 7.5f), Tema.Apagado);
+        faixas.Location = new Point(20, 192);
+        temp.Controls.Add(faixas);
+        p.Controls.Add(temp);
 
-        // Card otimizar
-        var otim = Card(30, 340, 900, 250);
+        // ---------- Otimizar ----------
+        var otim = Card(30, 340, 900, 220);
         btnOtimizar = Tema.Botao("⚡  OTIMIZAR AGORA", Tema.Destaque, 300, 64);
         btnOtimizar.Font = new Font("Segoe UI", 14f, FontStyle.Bold);
-        btnOtimizar.Location = new Point(24, 26);
+        btnOtimizar.Location = new Point(24, 24);
         btnOtimizar.Click += async (_, _) => await Otimizar();
         otim.Controls.Add(btnOtimizar);
 
@@ -258,24 +315,41 @@ internal class JanelaPrincipal : Form
             "Limpa temporários e lixeira, fecha launchers de fundo, liga Modo de Jogo e Alto Desempenho,\n" +
             "desliga a gravação em segundo plano e libera a RAM em espera. Tudo pode ser desfeito.",
             Tema.Pequena, Tema.Apagado);
-        expl.Location = new Point(344, 30);
+        expl.Location = new Point(344, 28);
         otim.Controls.Add(expl);
 
-        lblStatus.Location = new Point(344, 74);
+        lblStatus.Location = new Point(344, 70);
         otim.Controls.Add(lblStatus);
 
-        lblResultado.Location = new Point(24, 112);
+        lblResultado.Location = new Point(24, 104);
         lblResultado.MaximumSize = new Size(850, 0);
         otim.Controls.Add(lblResultado);
 
-        lblContador.Location = new Point(24, 216);
+        lblContador.Location = new Point(24, 190);
         otim.Controls.Add(lblContador);
         p.Controls.Add(otim);
+
+        // ---------- Saúde ----------
+        var saude = Card(30, 575, 440, 250, "Saúde do PC");
+        lblSaudeTitulo.Location = new Point(18, 40);
+        saude.Controls.Add(lblSaudeTitulo);
+        lblSaudeDet.Location = new Point(18, 66);
+        lblSaudeDet.MaximumSize = new Size(404, 0);
+        saude.Controls.Add(lblSaudeDet);
+        p.Controls.Add(saude);
+
+        // ---------- O que mais pesa ----------
+        var top = Card(490, 575, 440, 250, "O que mais está usando RAM");
+        lblTop.Location = new Point(18, 44);
+        lblTop.AutoSize = false;
+        lblTop.Size = new Size(404, 190);
+        top.Controls.Add(lblTop);
+        p.Controls.Add(top);
 
         var dica = Tema.Rotulo(
             "💡 Com a GTX 1050 Ti, o maior salto de FPS vem das configs do jogo. Vê a aba Jogos.",
             Tema.Pequena, Tema.Apagado);
-        dica.Location = new Point(33, 606);
+        dica.Location = new Point(33, 840);
         p.Controls.Add(dica);
 
         return p;
@@ -291,11 +365,21 @@ internal class JanelaPrincipal : Form
 
         try
         {
+            // Na 1ª otimização pelo app, cria um ponto de restauração antes de mexer em qualquer coisa
+            string marca = Path.Combine(Sistema.PastaDados, "ponto-inicial");
+            if (!File.Exists(marca))
+            {
+                lblStatus.Text = "Criando ponto de restauração (só na 1ª vez, pode demorar)...";
+                var (ok, msg) = await Task.Run(() => Restauracao.Criar("SEXTA-FEIRA - antes da 1ª otimização"));
+                Atualizador.Log("Ponto inicial: " + msg);
+                File.WriteAllText(marca, ok ? "ok" : msg);
+            }
+
             var r = await Task.Run(() => Otimizador.Executar((pct, txt) =>
                 BeginInvoke(new Action(() => lblStatus.Text = $"{pct}%  {txt}"))));
 
             lblResultado.ForeColor = Tema.Texto;
-            lblResultado.Text = "✅ PC otimizado! Bom jogo.\n\n" + r.Resumo() + "\n• " + string.Join("\n• ", r.Feito);
+            lblResultado.Text = "✅ " + r.Frase() + "\n" + string.Join("  •  ", r.Feito);
             AtualizarContador();
         }
         catch (Exception ex)
@@ -310,6 +394,7 @@ internal class JanelaPrincipal : Form
             ocupado = false;
         }
         _ = RodarChecagem();
+        _ = CarregarPontos();
     }
 
     private void AtualizarContador()
@@ -317,7 +402,8 @@ internal class JanelaPrincipal : Form
         var h = Historico.Carregar();
         if (h.Count == 0) { lblContador.Text = ""; return; }
         double disco = h.Sum(x => x.Disco);
-        lblContador.Text = $"Já otimizou {h.Count}x  •  {Sistema.Formatar(disco)} limpos no total  •  última: {h[^1].Quando:dd/MM HH:mm}";
+        double ram = h.Sum(x => x.RamLiberada);
+        lblContador.Text = $"Já otimizou {h.Count}x  •  {Sistema.Formatar(disco)} de disco e {Sistema.Formatar(ram)} de RAM liberados no total  •  última: {h[^1].Quando:dd/MM HH:mm}";
     }
 
     private async Task AtualizarMonitor()
@@ -326,18 +412,64 @@ internal class JanelaPrincipal : Form
         lendoMonitor = true;
         try
         {
-            var l = await Task.Run(() => MonitorPC.Ler());
+            var (l, g) = await Task.Run(() =>
+            {
+                var leitura = MonitorPC.Ler();
+                var gpu = Sensores.LerGpu();
+                Saude.Registrar(gpu);
+                return (leitura, gpu);
+            });
+
             barCpu.Valor = l.Cpu;
             barRam.Valor = l.Ram;
-            barGpu.Valor = l.Gpu;
+            barGpu.Valor = g.Uso >= 0 ? g.Uso : l.Gpu;
             lblTop.Text = string.Join("\n", l.Top.Select(t =>
             {
                 string nome = t.Nome.Length > 26 ? t.Nome[..26] : t.Nome;
                 return $"{nome,-28}{Sistema.Formatar(t.Bytes),10}";
             }));
+
+            var faixa = Sensores.Classificar(g.Temp);
+            lblTemp.Text = g.Disponivel ? $"{g.Temp:0} °C" : "-- °C";
+            lblTemp.ForeColor = Sensores.Cor(faixa);
+            var info = new List<string>();
+            if (g.Ventoinha >= 0) info.Add($"Ventoinha {g.Ventoinha:0}%");
+            if (g.Clock >= 0) info.Add($"{g.Clock:0} MHz");
+            if (g.Watts >= 0) info.Add($"{g.Watts:0} W");
+            lblTempInfo.Text = string.Join("\n", info);
+            lblTempExplica.Text = Sensores.Explicar(g);
         }
         catch { }
         finally { lendoMonitor = false; }
+    }
+
+    private async Task AtualizarSaude()
+    {
+        try
+        {
+            var (analise, discos) = await Task.Run(() => (Saude.Analisar(), Saude.LerDiscos()));
+            lblSaudeTitulo.Text = analise.Titulo;
+            lblSaudeTitulo.ForeColor = analise.Status switch
+            {
+                Status.Ok => Tema.Verde,
+                Status.Alerta => Tema.Amarelo,
+                _ => Tema.Destaque
+            };
+
+            var linhas = new List<string>(analise.Detalhes);
+            if (discos.Count > 0)
+            {
+                linhas.Add("");
+                foreach (var d in discos)
+                    linhas.Add($"{(d.Status == Status.Alerta ? "⚠" : "💾")} {d.Tipo} {d.Nome}: {Saude.Descrever(d)}");
+            }
+            lblSaudeDet.Text = string.Join("\n", linhas);
+            lblSaudeDet.ForeColor = discos.Any(d => d.Status == Status.Alerta) ? Tema.Amarelo : Tema.Apagado;
+        }
+        catch (Exception ex)
+        {
+            Atualizador.Log("ERRO na saúde: " + ex);
+        }
     }
 
     // =====================================================================
@@ -422,6 +554,12 @@ internal class JanelaPrincipal : Form
         listaChecagem.ResumeLayout();
 
         int alertas = checagens.Count(c => c.Status == Status.Alerta);
+        int nota = Checagens.Nota(checagens);
+        lblNota.Text = $"{nota}%";
+        lblNota.ForeColor = nota >= 90 ? Tema.Verde : nota >= 70 ? Tema.Destaque : Tema.Amarelo;
+        lblNotaTxt.Text = nota >= 100 ? "otimizado. Tudo no ponto pra jogar! 🔥"
+            : $"otimizado. {alertas} coisa(s) pra arrumar na aba Checagem" +
+              (checagens.Any(c => c.Status == Status.Alerta && c.Acao == null) ? " (algumas só na BIOS ou no hardware)." : ".");
         lblResumoChecagem.Text = alertas == 0 ? "✅ Tudo certo no teu PC!" : $"⚠ {alertas} ponto(s) de atenção";
         lblResumoChecagem.ForeColor = alertas == 0 ? Tema.Verde : Tema.Amarelo;
     }
@@ -496,6 +634,117 @@ internal class JanelaPrincipal : Form
             y += altura + 16;
         }
         listaJogos.ResumeLayout();
+    }
+
+    // =====================================================================
+    //  Página: Restauração
+    // =====================================================================
+
+    private Panel MontarRestauracao()
+    {
+        var p = NovaPagina("Restauração",
+            "Um ponto de restauração é uma \"foto\" das configurações do Windows. Se algo der errado depois de instalar um driver ou mudar algo, " +
+            "tu volta pra ela. Teus arquivos (fotos, documentos, jogos) NÃO são apagados.");
+
+        var criar = Card(30, 118, 900, 120, "Criar um ponto agora");
+        txtPonto.Location = new Point(18, 46);
+        txtPonto.Size = new Size(560, 30);
+        txtPonto.BackColor = Tema.CardClaro;
+        txtPonto.ForeColor = Tema.Texto;
+        txtPonto.BorderStyle = BorderStyle.FixedSingle;
+        txtPonto.Font = Tema.Normal;
+        txtPonto.Text = "SEXTA-FEIRA - " + DateTime.Now.ToString("dd/MM/yyyy");
+        criar.Controls.Add(txtPonto);
+
+        btnCriarPonto = Tema.Botao("Criar ponto", Tema.Destaque, 180, 34);
+        btnCriarPonto.Location = new Point(598, 44);
+        btnCriarPonto.Click += async (_, _) =>
+        {
+            string nome = string.IsNullOrWhiteSpace(txtPonto.Text) ? "SEXTA-FEIRA" : txtPonto.Text.Trim();
+            btnCriarPonto.Enabled = false;
+            lblPontoStatus.ForeColor = Tema.Apagado;
+            lblPontoStatus.Text = "Criando... pode levar até 1 minuto.";
+            var (ok, msg) = await Task.Run(() => Restauracao.Criar(nome));
+            lblPontoStatus.ForeColor = ok ? Tema.Verde : Tema.Amarelo;
+            lblPontoStatus.Text = msg;
+            btnCriarPonto.Enabled = true;
+            await CarregarPontos();
+        };
+        criar.Controls.Add(btnCriarPonto);
+
+        lblPontoStatus.Location = new Point(20, 88);
+        criar.Controls.Add(lblPontoStatus);
+        p.Controls.Add(criar);
+
+        var titulo = Tema.Rotulo("Pontos que já existem no teu PC", Tema.Negrito);
+        titulo.Location = new Point(33, 254);
+        p.Controls.Add(titulo);
+
+        listaPontos.Location = new Point(30, 282);
+        listaPontos.Size = new Size(900, 430);
+        listaPontos.BackColor = Tema.Card;
+        listaPontos.AutoScroll = true;
+        p.Controls.Add(listaPontos);
+        return p;
+    }
+
+    private async Task CarregarPontos()
+    {
+        var pontos = await Task.Run(() => Restauracao.Listar());
+        listaPontos.SuspendLayout();
+        listaPontos.Controls.Clear();
+
+        if (pontos.Count == 0)
+        {
+            var vazio = Tema.Rotulo("Nenhum ponto de restauração ainda. Cria o primeiro aí em cima!", Tema.Normal, Tema.Apagado);
+            vazio.Location = new Point(18, 18);
+            listaPontos.Controls.Add(vazio);
+        }
+
+        int y = 8;
+        foreach (var pt in pontos)
+        {
+            var nome = Tema.Rotulo(pt.Descricao, Tema.Negrito);
+            nome.Location = new Point(18, y + 4);
+            nome.MaximumSize = new Size(640, 0);
+            listaPontos.Controls.Add(nome);
+
+            string quando = pt.Data == default ? "" : pt.Data.ToString("dd/MM/yyyy 'às' HH:mm") + "  •  ";
+            var det = Tema.Rotulo(quando + pt.Tipo, Tema.Pequena, Tema.Apagado);
+            det.Location = new Point(18, y + 28);
+            listaPontos.Controls.Add(det);
+
+            var b = Tema.Botao("Restaurar", Tema.CardClaro, 140, 34);
+            b.Font = Tema.Pequena;
+            b.Location = new Point(710, y + 8);
+            var ponto = pt;
+            b.Click += (_, _) => RestaurarPonto(ponto);
+            listaPontos.Controls.Add(b);
+            y += 60;
+        }
+        listaPontos.ResumeLayout();
+    }
+
+    private void RestaurarPonto(Restauracao.Ponto pt)
+    {
+        var resp = MessageBox.Show(
+            $"Voltar o Windows para \"{pt.Descricao}\" ({pt.Data:dd/MM/yyyy HH:mm})?\n\n" +
+            "• Programas e drivers instalados depois dessa data podem sumir.\n" +
+            "• Teus arquivos pessoais e jogos NÃO são apagados.\n" +
+            "• O PC vai precisar reiniciar e demora alguns minutos.\n\n" +
+            "Salva o que estiver aberto antes de continuar.",
+            "Restaurar o Windows", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (resp != DialogResult.Yes) return;
+
+        var (ok, msg) = Restauracao.Restaurar(pt.Numero);
+        if (!ok)
+        {
+            MessageBox.Show(msg, "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (MessageBox.Show("Tudo pronto! Reiniciar agora pra restaurar?", "SEXTA-FEIRA",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            Sistema.Rodar("shutdown", "/r /t 5");
     }
 
     // =====================================================================
@@ -655,6 +904,11 @@ internal class JanelaPrincipal : Form
         timerAtualizacao.Start();
         _ = AtualizarMonitor();
         AtualizarContador();
+
+        _ = AtualizarSaude();
+        _ = CarregarPontos();
+        timerSaude.Tick += async (_, _) => await AtualizarSaude();
+        timerSaude.Start();
 
         pc = await Task.Run(() => InfoPC.Ler());
         lblSpecs.Text = pc.Resumo();

@@ -63,7 +63,7 @@ internal static class Historico
             {
                 Quando = DateTime.Now,
                 Disco = r.DiscoLiberado,
-                RamLiberada = Math.Max(0, r.RamLivreDepois - r.RamLivreAntes)
+                RamLiberada = r.RamLiberada
             });
             if (lista.Count > 50) lista = lista.Skip(lista.Count - 50).ToList();
             File.WriteAllText(Arquivo, JsonSerializer.Serialize(lista));
