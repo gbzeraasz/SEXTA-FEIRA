@@ -193,12 +193,25 @@ internal class JanelaPrincipal : Form
         lateral.Width = 220;
         lateral.BackColor = Tema.Lateral;
 
-        var logo = Tema.Rotulo("SEXTA-FEIRA", new Font(Hud.FonteForte, 17f), Tema.Destaque);
-        logo.Location = new Point(22, 26);
+        lateral.Controls.Add(new LogoNucleo { Location = new Point(16, 30) });
+        var logo = Tema.Rotulo("SEXTA-FEIRA", new Font(Hud.FonteForte, 15f), Color.White);
+        logo.Location = new Point(54, 26);
         lateral.Controls.Add(logo);
-        var sub = Tema.Rotulo("otimizador de jogos", Tema.Pequena, Tema.Apagado);
-        sub.Location = new Point(25, 62);
+        var sub = Tema.Rotulo("sistema de desempenho", new Font(Hud.FonteTexto, 8.5f), Hud.Alfa(Hud.Ciano, 255));
+        sub.Location = new Point(56, 52);
         lateral.Controls.Add(sub);
+        // linha de luz na borda do menu
+        lateral.Paint += (_, e) =>
+        {
+            var r = new Rectangle(lateral.Width - 1, 0, 1, lateral.Height);
+            using var br = new System.Drawing.Drawing2D.LinearGradientBrush(r, Color.Transparent, Color.Transparent, 90f);
+            br.InterpolationColors = new System.Drawing.Drawing2D.ColorBlend
+            {
+                Colors = new[] { Color.FromArgb(10, 0, 209, 255), Color.FromArgb(90, 0, 209, 255), Color.FromArgb(10, 0, 209, 255) },
+                Positions = new[] { 0f, 0.4f, 1f }
+            };
+            e.Graphics.FillRectangle(br, r);
+        };
 
         foreach (var item in Menu)
         {
@@ -350,14 +363,19 @@ internal class JanelaPrincipal : Form
     {
         faixaAtualizacao.Dock = DockStyle.Top;
         faixaAtualizacao.Height = 50;
-        faixaAtualizacao.BackColor = Tema.DestaqueEscuro;
+        faixaAtualizacao.BackColor = Color.FromArgb(8, 34, 30);
+        faixaAtualizacao.Paint += (_, e) =>
+        {
+            using var b = new SolidBrush(Hud.Alfa(Tema.Verde, 160));
+            e.Graphics.FillRectangle(b, 0, faixaAtualizacao.Height - 1, faixaAtualizacao.Width, 1);
+        };
         faixaAtualizacao.Visible = false;
 
         lblFaixa = Tema.Rotulo("", Tema.Negrito, Color.White);
         lblFaixa.Location = new Point(30, 15);
         faixaAtualizacao.Controls.Add(lblFaixa);
 
-        btnFaixa = Tema.Botao("Atualizar agora", Color.White, 150, 34);
+        btnFaixa = Tema.Botao("Atualizar agora", Tema.Verde, 170, 34);
         btnFaixa.Location = new Point(LarguraUtil - 120, 8);
         btnFaixa.Click += async (_, _) => await InstalarAtualizacao();
         faixaAtualizacao.Controls.Add(btnFaixa);
@@ -715,7 +733,7 @@ internal class JanelaPrincipal : Form
 
         foreach (var grupo in Limpeza.Itens.Where(i => { try { return i.Disponivel(); } catch { return false; } }).GroupBy(i => i.Categoria))
         {
-            var cab = Tema.Rotulo($"{grupo.Key.ToUpperInvariant()}   {grupo.Count()}", new Font("Segoe UI Semibold", 8.5f), Tema.Apagado);
+            var cab = Tema.Rotulo($"{grupo.Key}  ·  {grupo.Count()}", new Font(Hud.FonteForte, 9.5f), Hud.CianoClaro);
             cab.Location = new Point(16, y + 4);
             listaLimpeza.Controls.Add(cab);
             y += 30;
@@ -784,6 +802,7 @@ internal class JanelaPrincipal : Form
                 linha.Botao = b;
 
                 linhasLimpeza.Add(linha);
+                listaLimpeza.Controls.Add(new Panel { BackColor = Color.FromArgb(22, 32, 50), Location = new Point(16, y + 54), Size = new Size(860, 1) });
                 y += 58;
             }
             y += 8;
@@ -994,6 +1013,7 @@ internal class JanelaPrincipal : Form
                 };
                 listaChecagem.Controls.Add(b);
             }
+            listaChecagem.Controls.Add(new Panel { BackColor = Color.FromArgb(22, 32, 50), Location = new Point(16, y + 57), Size = new Size(850, 1) });
             y += 62;
         }
         listaChecagem.ResumeLayout();

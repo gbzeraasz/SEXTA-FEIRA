@@ -768,3 +768,54 @@ internal class BotaoMenuHud : Button
             TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
     }
 }
+
+/// <summary>Símbolo da SEXTA-FEIRA no menu: um núcleo pequeno com dois arcos girando devagar.</summary>
+internal class LogoNucleo : Control
+{
+    private readonly System.Windows.Forms.Timer anim = new() { Interval = 50 };
+    private float ang;
+
+    public LogoNucleo()
+    {
+        SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+        BackColor = Color.Transparent;
+        Size = new Size(34, 34);
+        anim.Tick += (_, _) =>
+        {
+            var f = FindForm();
+            if (f == null || f.WindowState == FormWindowState.Minimized) return;
+            ang = (ang + 4) % 360;
+            Invalidate();
+        };
+        anim.Start();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        float cx = Width / 2f, cy = Height / 2f, r = Width / 2f - 3;
+
+        using (var aura = new GraphicsPath())
+        {
+            aura.AddEllipse(cx - r, cy - r, r * 2, r * 2);
+            using var br = new PathGradientBrush(aura) { CenterColor = Hud.Alfa(Hud.Ciano, 90), SurroundColors = new[] { Color.Transparent } };
+            g.FillPath(br, aura);
+        }
+        using (var p = new Pen(Hud.Alfa(Hud.Ciano, 230), 2.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+        {
+            g.DrawArc(p, cx - r, cy - r, r * 2, r * 2, ang, 110);
+            g.DrawArc(p, cx - r, cy - r, r * 2, r * 2, ang + 180, 110);
+        }
+        float r2 = r - 5;
+        using (var p = new Pen(Hud.Alfa(Hud.CianoClaro, 170), 1.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            g.DrawArc(p, cx - r2, cy - r2, r2 * 2, r2 * 2, -ang * 1.5f, 200);
+        using (var b = new SolidBrush(Color.White)) g.FillEllipse(b, cx - 2.5f, cy - 2.5f, 5, 5);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) anim.Dispose();
+        base.Dispose(disposing);
+    }
+}
