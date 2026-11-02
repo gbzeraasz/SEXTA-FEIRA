@@ -28,3 +28,7 @@ Depois disso o app se atualiza sozinho.
 Toda mudança enviada pra `main` gera uma Release nova automaticamente (GitHub Actions + Velopack).
 O secret `UPDATE_TOKEN` (token só de leitura deste repositório) precisa estar configurado em
 **Settings → Secrets and variables → Actions** pros apps conseguirem baixar as atualizações.
+
+## Terceiros
+
+- **PresentMon** (Intel, licença MIT): usado no Benchmark pra medir o FPS real dos jogos. Baixado automaticamente no build.

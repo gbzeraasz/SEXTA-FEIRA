@@ -277,7 +277,7 @@ internal static class Otimizador
     }
 
     /// <summary>Esvazia a lista "em espera" da RAM. Retorna o código do Windows (0 = deu certo).</summary>
-    private static uint LiberarRamEmEspera()
+    internal static uint LiberarRamEmEspera()
     {
         try
         {

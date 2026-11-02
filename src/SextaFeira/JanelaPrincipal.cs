@@ -88,6 +88,8 @@ internal class JanelaPrincipal : Form
         paginas["checagem"] = MontarChecagem();
         paginas["jogos"] = MontarJogos();
         paginas["competitivo"] = MontarCompetitivo();
+        paginas["benchmark"] = MontarBenchmark();
+        paginas["pros"] = MontarPros();
         paginas["restauracao"] = MontarRestauracao();
         paginas["ferramentas"] = MontarFerramentas();
         foreach (var p in paginas.Values) conteudo.Controls.Add(p);
@@ -138,7 +140,7 @@ internal class JanelaPrincipal : Form
 
         int y = 120;
         foreach (var (chave, texto) in new[]
-                 { ("inicio", "⚡  Início"), ("checagem", "🩺  Checagem"), ("jogos", "📚  Biblioteca"), ("competitivo", "🏆  Competitivo"), ("restauracao", "🛟  Restauração"), ("ferramentas", "🛠  Ferramentas") })
+                 { ("inicio", "⚡  Início"), ("checagem", "🩺  Checagem"), ("jogos", "📚  Biblioteca"), ("competitivo", "🏆  Competitivo"), ("benchmark", "📊  Benchmark"), ("pros", "⭐  Config de pros"), ("restauracao", "🛟  Restauração"), ("ferramentas", "🛠  Ferramentas") })
         {
             var b = new Button
             {
@@ -855,6 +857,344 @@ internal class JanelaPrincipal : Form
     }
 
     // =====================================================================
+    //  Página: Benchmark
+    // =====================================================================
+
+    private readonly ComboBox cmbJogoAberto = new();
+    private readonly ComboBox cmbDuracao = new();
+    private Button btnMedir, btnAntesDepois, btnTestePc;
+    private readonly Label lblBenchStatus = Tema.Rotulo("", Tema.Negrito, Tema.Destaque);
+    private readonly Label lblFpsMedia = Tema.Rotulo("--", new Font("Segoe UI", 30f, FontStyle.Bold), Tema.Texto);
+    private readonly Label lblFpsLow = Tema.Rotulo("--", new Font("Segoe UI", 30f, FontStyle.Bold), Tema.Texto);
+    private readonly Label lblFpsLow01 = Tema.Rotulo("--", new Font("Segoe UI", 30f, FontStyle.Bold), Tema.Texto);
+    private readonly Label lblFpsComparacao = Tema.Rotulo("", Tema.Normal, Tema.Texto);
+    private readonly Label lblTestePc = Tema.Rotulo("Mede o processador e o disco C. Repete de vez em quando: se cair muito, o app avisa.", Tema.Pequena, Tema.Apagado);
+    private readonly Label lblHistorico = Tema.Rotulo("", Tema.Mono, Tema.Texto);
+    private bool medindo;
+
+    private Panel MontarBenchmark()
+    {
+        var p = NovaPagina("Benchmark", "FPS medido de verdade dentro do jogo, com o mesmo método dos sites de review. Não mexe no jogo: seguro com anti-cheat.");
+
+        // ---------- FPS ----------
+        var fps = Card(30, 104, 900, 300, "FPS real no jogo");
+        var dica = Tema.Rotulo("1) Abre o jogo e entra numa partida/treino   2) Volta aqui (Alt+Tab)   3) Clica em medir e volta pro jogo", Tema.Pequena, Tema.Apagado);
+        dica.Location = new Point(18, 36);
+        fps.Controls.Add(dica);
+
+        cmbJogoAberto.Location = new Point(18, 64);
+        cmbJogoAberto.Size = new Size(280, 30);
+        cmbJogoAberto.DropDownStyle = ComboBoxStyle.DropDownList;
+        cmbJogoAberto.FlatStyle = FlatStyle.Flat;
+        cmbJogoAberto.BackColor = Tema.CardClaro;
+        cmbJogoAberto.ForeColor = Tema.Texto;
+        fps.Controls.Add(cmbJogoAberto);
+
+        var atualizar = Tema.Botao("↻", Tema.CardClaro, 40, 30);
+        atualizar.Location = new Point(304, 63);
+        atualizar.Click += async (_, _) => await ProcurarJogosAbertos();
+        fps.Controls.Add(atualizar);
+
+        cmbDuracao.Location = new Point(354, 64);
+        cmbDuracao.Size = new Size(110, 30);
+        cmbDuracao.DropDownStyle = ComboBoxStyle.DropDownList;
+        cmbDuracao.FlatStyle = FlatStyle.Flat;
+        cmbDuracao.BackColor = Tema.CardClaro;
+        cmbDuracao.ForeColor = Tema.Texto;
+        cmbDuracao.Items.AddRange(new object[] { "30 segundos", "60 segundos", "90 segundos" });
+        cmbDuracao.SelectedIndex = 0;
+        fps.Controls.Add(cmbDuracao);
+
+        btnMedir = Tema.Botao("Medir FPS", Tema.Destaque, 150, 36);
+        btnMedir.Location = new Point(480, 60);
+        btnMedir.Click += async (_, _) => await MedirFps(false);
+        fps.Controls.Add(btnMedir);
+
+        btnAntesDepois = Tema.Botao("⚡ Antes x Depois", Tema.Amarelo, 190, 36);
+        btnAntesDepois.Location = new Point(640, 60);
+        btnAntesDepois.Click += async (_, _) => await MedirFps(true);
+        fps.Controls.Add(btnAntesDepois);
+
+        lblBenchStatus.Location = new Point(18, 104);
+        fps.Controls.Add(lblBenchStatus);
+
+        int x = 18;
+        foreach (var (rot, lbl, expl) in new[]
+                 {
+                     ("FPS MÉDIO", lblFpsMedia, "o normal"),
+                     ("1% LOW", lblFpsLow, "as quedas (o que tu sente como travada)"),
+                     ("0,1% LOW", lblFpsLow01, "as piores travadas"),
+                 })
+        {
+            var r = Tema.Rotulo(rot, new Font("Segoe UI Semibold", 8.5f), Tema.Apagado);
+            r.Location = new Point(x + 2, 136);
+            fps.Controls.Add(r);
+            lbl.Location = new Point(x, 154);
+            fps.Controls.Add(lbl);
+            var e = Tema.Rotulo(expl, Tema.Pequena, Tema.Apagado);
+            e.Location = new Point(x + 2, 206);
+            fps.Controls.Add(e);
+            x += 290;
+        }
+        lblFpsComparacao.Location = new Point(18, 240);
+        lblFpsComparacao.MaximumSize = new Size(860, 0);
+        fps.Controls.Add(lblFpsComparacao);
+        p.Controls.Add(fps);
+
+        // ---------- Teste do PC ----------
+        var teste = Card(30, 420, 440, 300, "Teste do PC");
+        btnTestePc = Tema.Botao("Rodar teste (~15s)", Tema.Destaque, 190, 36);
+        btnTestePc.Location = new Point(18, 42);
+        btnTestePc.Click += async (_, _) => await RodarTestePc();
+        teste.Controls.Add(btnTestePc);
+        lblTestePc.Location = new Point(18, 92);
+        lblTestePc.MaximumSize = new Size(404, 0);
+        teste.Controls.Add(lblTestePc);
+        p.Controls.Add(teste);
+
+        // ---------- Histórico ----------
+        var hist = Card(490, 420, 440, 300, "Últimas medições de FPS");
+        lblHistorico.Location = new Point(18, 42);
+        lblHistorico.AutoSize = false;
+        lblHistorico.Size = new Size(410, 250);
+        hist.Controls.Add(lblHistorico);
+        p.Controls.Add(hist);
+        return p;
+    }
+
+    private List<(string Nome, string Processo)> jogosAbertos = new();
+
+    private async Task ProcurarJogosAbertos()
+    {
+        var bib = biblioteca;
+        jogosAbertos = await Task.Run(() => Benchmark.JogosAbertos(bib));
+        cmbJogoAberto.Items.Clear();
+        if (jogosAbertos.Count == 0) cmbJogoAberto.Items.Add("Nenhum jogo aberto");
+        foreach (var j in jogosAbertos) cmbJogoAberto.Items.Add(j.Nome);
+        cmbJogoAberto.SelectedIndex = 0;
+    }
+
+    private void MostrarFps(Benchmark.Fps r)
+    {
+        lblFpsMedia.Text = $"{r.Media:0}";
+        lblFpsLow.Text = $"{r.Low1:0}";
+        lblFpsLow01.Text = $"{r.Low01:0}";
+        lblFpsMedia.ForeColor = Tema.Destaque;
+        lblFpsLow.ForeColor = r.Low1 >= r.Media * 0.6 ? Tema.Verde : Tema.Amarelo;
+        lblFpsLow01.ForeColor = r.Low01 >= r.Media * 0.4 ? Tema.Verde : Tema.Amarelo;
+    }
+
+    private async Task MedirFps(bool antesDepois)
+    {
+        if (medindo) return;
+        await ProcurarJogosAbertos();
+        if (jogosAbertos.Count == 0)
+        {
+            MessageBox.Show("Abre o jogo primeiro (de preferência numa partida ou no treino) e clica em medir de novo.", "SEXTA-FEIRA");
+            return;
+        }
+        if (!Benchmark.TemPresentMon)
+        {
+            MessageBox.Show("O medidor de FPS ainda não chegou nessa versão. Espera a próxima atualização.", "SEXTA-FEIRA");
+            return;
+        }
+
+        var (nome, processo) = jogosAbertos[Math.Max(0, cmbJogoAberto.SelectedIndex)];
+        int seg = (cmbDuracao.SelectedIndex + 1) * 30;
+        medindo = true;
+        btnMedir.Enabled = btnAntesDepois.Enabled = false;
+        lblFpsComparacao.Text = "";
+
+        try
+        {
+            if (!antesDepois)
+            {
+                var (r, erro) = await ContarRegressiva(nome, processo, seg, "Medição");
+                if (r != null)
+                {
+                    MostrarFps(r);
+                    var anterior = Benchmark.HistoricoFps().Where(h => h.Jogo == nome && h.Data < r.Data).OrderByDescending(h => h.Data).Skip(0).FirstOrDefault();
+                    lblFpsComparacao.Text = anterior == null ? $"Primeira medição de {nome} salva." :
+                        $"Comparado com a medição anterior de {nome} ({anterior.Data:dd/MM HH:mm}): {Diferenca(r.Media, anterior.Media)} no FPS médio  •  {Diferenca(r.Low1, anterior.Low1)} no 1% low";
+                }
+                else lblBenchStatus.Text = "⚠ " + erro;
+            }
+            else
+            {
+                var (antes, erro1) = await ContarRegressiva(nome, processo, seg, "Antes");
+                if (antes == null) { lblBenchStatus.Text = "⚠ " + erro1; return; }
+                MostrarFps(antes);
+
+                lblBenchStatus.Text = "Otimizando o PC...";
+                await Task.Run(() => Otimizador.Executar());
+                lblBenchStatus.Text = "Esperando o PC estabilizar...";
+                await Task.Delay(5000);
+
+                var (depois, erro2) = await ContarRegressiva(nome, processo, seg, "Depois");
+                if (depois == null) { lblBenchStatus.Text = "⚠ " + erro2; return; }
+                MostrarFps(depois);
+                lblFpsComparacao.Text =
+                    $"ANTES:  {antes.Media:0} FPS  •  1% low {antes.Low1:0}\n" +
+                    $"DEPOIS: {depois.Media:0} FPS  •  1% low {depois.Low1:0}\n" +
+                    $"Resultado: {Diferenca(depois.Media, antes.Media)} no FPS médio e {Diferenca(depois.Low1, antes.Low1)} nas quedas (1% low)." +
+                    (Math.Abs(depois.Media - antes.Media) / antes.Media < 0.03
+                        ? "\nDiferença pequena é normal se o PC já estava limpo: aí o ganho vem mais das configs do jogo (aba Biblioteca)."
+                        : "");
+                lblBenchStatus.Text = "✅ Comparação pronta!";
+            }
+        }
+        finally
+        {
+            medindo = false;
+            btnMedir.Enabled = btnAntesDepois.Enabled = true;
+            AtualizarHistoricoFps();
+        }
+    }
+
+    private async Task<(Benchmark.Fps, string)> ContarRegressiva(string nome, string processo, int seg, string etiqueta)
+    {
+        var tarefa = Task.Run(() => Benchmark.MedirFps(nome, processo, seg, etiqueta));
+        int restante = seg;
+        while (!tarefa.IsCompleted)
+        {
+            lblBenchStatus.Text = restante > 0
+                ? $"Medindo {etiqueta.ToLowerInvariant()}: {restante}s  (volta pro jogo e joga normal!)"
+                : "Calculando...";
+            await Task.WhenAny(tarefa, Task.Delay(1000));
+            restante--;
+        }
+        var (r, erro) = await tarefa;
+        if (r != null) lblBenchStatus.Text = $"✅ {r.Quadros:N0} quadros medidos em {nome}" + (r.TempGpu > 0 ? $"  •  GPU chegou a {r.TempGpu:0} °C" : "");
+        return (r, erro);
+    }
+
+    private static string Diferenca(double agora, double antes)
+    {
+        if (antes <= 0) return "--";
+        double pct = (agora - antes) / antes * 100;
+        return (pct >= 0 ? "▲ +" : "▼ ") + $"{pct:0.0}%";
+    }
+
+    private void AtualizarHistoricoFps()
+    {
+        var h = Benchmark.HistoricoFps().OrderByDescending(x => x.Data).Take(12).ToList();
+        if (h.Count == 0) { lblHistorico.Text = "Nenhuma medição ainda."; return; }
+        lblHistorico.Text = string.Join("\n", h.Select(x =>
+        {
+            string jogo = x.Jogo.Length > 14 ? x.Jogo[..14] : x.Jogo;
+            return $"{x.Data:dd/MM HH:mm} {jogo,-14} {x.Media,4:0} fps  1%:{x.Low1,4:0}  {(x.Etiqueta == "Medição" ? "" : x.Etiqueta)}";
+        }));
+    }
+
+    private async Task RodarTestePc()
+    {
+        btnTestePc.Enabled = false;
+        lblTestePc.ForeColor = Tema.Apagado;
+        try
+        {
+            var t = await Task.Run(() => Benchmark.RodarTeste((pct, txt) =>
+                BeginInvoke(new Action(() => lblTestePc.Text = $"{pct}%  {txt}"))));
+            string comp = await Task.Run(() => Benchmark.Comparar(t));
+            lblTestePc.ForeColor = Tema.Texto;
+            lblTestePc.Text =
+                $"Processador (1 núcleo): {t.CpuUmNucleo:N0} pontos\n" +
+                $"Processador (todos): {t.CpuTodos:N0} pontos\n" +
+                $"Disco C: leitura {t.DiscoLeitura:N0} MB/s  •  escrita {t.DiscoEscrita:N0} MB/s\n\n" + comp;
+        }
+        catch (Exception ex)
+        {
+            lblTestePc.Text = "Erro no teste: " + ex.Message;
+        }
+        finally { btnTestePc.Enabled = true; }
+    }
+
+    // =====================================================================
+    //  Página: Config de pros
+    // =====================================================================
+
+    private readonly Panel listaPros = new();
+    private readonly Dictionary<string, Button> abasPros = new();
+    private readonly Label lblComoImportar = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+
+    private Panel MontarPros()
+    {
+        var p = NovaPagina("Config de pros", "Mira e sensibilidade dos pros. Clica em \"Copiar mira\" e importa no jogo.");
+        int x = 30;
+        foreach (var lj in Pros.Jogos)
+        {
+            var b = Tema.Botao(lj.Jogo, Tema.CardClaro, 190, 36);
+            b.Location = new Point(x, 104);
+            string jogo = lj.Jogo;
+            b.Click += (_, _) => MostrarPros(jogo);
+            p.Controls.Add(b);
+            abasPros[lj.Jogo] = b;
+            x += 200;
+        }
+        lblComoImportar.Location = new Point(33, 150);
+        lblComoImportar.MaximumSize = new Size(LarguraUtil, 0);
+        p.Controls.Add(lblComoImportar);
+
+        listaPros.Location = new Point(30, 196);
+        listaPros.Size = new Size(900, 530);
+        listaPros.BackColor = Tema.Card;
+        listaPros.AutoScroll = true;
+        p.Controls.Add(listaPros);
+        MostrarPros(Pros.Jogos[0].Jogo);
+        return p;
+    }
+
+    private void MostrarPros(string jogo)
+    {
+        var lj = Pros.Jogos.First(j => j.Jogo == jogo);
+        foreach (var (k, b) in abasPros)
+        {
+            b.BackColor = k == jogo ? Tema.Destaque : Tema.CardClaro;
+            b.ForeColor = k == jogo ? Color.FromArgb(10, 12, 20) : Color.White;
+        }
+        lblComoImportar.Text = $"{lj.ComoImportar}\nFonte: {lj.Fonte}, conferido em {lj.Conferido}. Os pros trocam de mira com frequência, então pode ter mudado.";
+
+        listaPros.SuspendLayout();
+        listaPros.Controls.Clear();
+        int y = 8;
+        foreach (var pro in lj.Lista)
+        {
+            var nome = Tema.Rotulo($"{pro.Pais} {pro.Nome}", Tema.Negrito);
+            nome.Location = new Point(18, y + 4);
+            listaPros.Controls.Add(nome);
+            if (!string.IsNullOrEmpty(pro.Time))
+            {
+                var time = Tema.Rotulo(pro.Time, Tema.Pequena, Tema.Apagado);
+                time.Location = new Point(190, y + 6);
+                listaPros.Controls.Add(time);
+            }
+
+            string linha2 = pro.Mira ?? pro.Detalhe ?? "";
+            var det = Tema.Rotulo(linha2.Length > 70 ? linha2[..70] + "…" : linha2, pro.Mira != null ? Tema.Mono : Tema.Pequena, Tema.Apagado);
+            det.Location = new Point(18, y + 30);
+            listaPros.Controls.Add(det);
+
+            if (pro.Mira != null)
+            {
+                var b = Tema.Botao("Copiar mira", Tema.CardClaro, 130, 32);
+                b.Font = Tema.Pequena;
+                b.Location = new Point(730, y + 10);
+                string codigo = pro.Mira;
+                string quem = pro.Nome;
+                b.Click += (s, _) =>
+                {
+                    try { Clipboard.SetText(codigo); } catch { }
+                    ((Button)s).Text = "✅ Copiado!";
+                    ((Button)s).BackColor = Tema.Verde;
+                    ((Button)s).ForeColor = Color.FromArgb(10, 12, 20);
+                };
+                listaPros.Controls.Add(b);
+            }
+            y += 62;
+        }
+        listaPros.ResumeLayout();
+    }
+
+    // =====================================================================
     //  Página: Restauração
     // =====================================================================
 
@@ -1135,6 +1475,8 @@ internal class JanelaPrincipal : Form
         nivel = ConfigsCompetitivas.Nivel(pc.Gpu);
         biblioteca = await Task.Run(() => Biblioteca.Listar());
         PreencherJogos();
+        AtualizarHistoricoFps();
+        _ = ProcurarJogosAbertos();
         AtualizarAtalho();
 
         // Atualiza o botão já existente (ícone e caminho novos depois de uma atualização)

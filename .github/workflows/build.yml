@@ -50,6 +50,20 @@ jobs:
           }
           "@ | Set-Content -Path src/SextaFeira/Segredos.g.cs -Encoding utf8
 
+      - name: Baixar o PresentMon (medidor de FPS da Intel, licença MIT)
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view -R GameTechDev/PresentMon --json tagName,assets -q '.tagName, (.assets[].name)'
+          gh release download -R GameTechDev/PresentMon --pattern "PresentMon-*-x64.exe" --dir pm_tmp --clobber
+          $f = Get-ChildItem pm_tmp -Filter "PresentMon-*-x64.exe" | Select-Object -First 1
+          if (-not $f) { Write-Host "::warning::PresentMon não encontrado"; exit 0 }
+          New-Item -ItemType Directory -Force src/SextaFeira/tools | Out-Null
+          Copy-Item $f.FullName src/SextaFeira/tools/PresentMon.exe
+          Write-Host "PresentMon: $($f.Name)"
+
       - name: Compilar
         run: dotnet publish src/SextaFeira/SextaFeira.csproj -c Release -r win-x64 --self-contained true -o publish -p:Version=${{ steps.ver.outputs.version }}
 
