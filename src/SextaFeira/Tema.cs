@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Drawing.Drawing2D;
 
 namespace SextaFeira;
@@ -39,6 +40,17 @@ internal static class Tema
             catch { icone = SystemIcons.Application; }
             return icone;
         }
+    }
+
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+    private static extern int SetWindowTheme(IntPtr hwnd, string app, string id);
+
+    /// <summary>Deixa as barras de rolagem do controle escuras (Windows 10 1809+ e 11).</summary>
+    public static void Escurecer(Control c)
+    {
+        void Aplicar() { try { SetWindowTheme(c.Handle, "DarkMode_Explorer", null); } catch { } }
+        if (c.IsHandleCreated) Aplicar();
+        else c.HandleCreated += (_, _) => Aplicar();
     }
 
     public static Label Rotulo(string texto, Font fonte = null, Color? cor = null)

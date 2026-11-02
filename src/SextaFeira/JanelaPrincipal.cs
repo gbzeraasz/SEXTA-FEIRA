@@ -125,6 +125,42 @@ internal class JanelaPrincipal : Form
     //  Estrutura
     // =====================================================================
 
+    // Menu: itens soltos e grupos que abrem/fecham
+    private record ItemMenu(string Chave, string Texto, (string Chave, string Texto)[] Filhos = null);
+
+    private static readonly ItemMenu[] Menu =
+    {
+        new("inicio", "⚡  Início"),
+        new("g-checagem", "🩺  Checagem", new[] { ("checagem", "Checagem do PC"), ("benchmark", "Benchmark"), ("restauracao", "Ponto de restauração") }),
+        new("g-biblioteca", "📚  Biblioteca", new[] { ("jogos", "Meus jogos"), ("pros", "Mira dos pros"), ("competitivo", "Competitivo") }),
+        new("ferramentas", "🛠  Ferramentas"),
+    };
+
+    private readonly Dictionary<string, Button> grupos = new();
+    private readonly HashSet<string> gruposAbertos = new();
+    private string paginaAtual = "inicio";
+
+    private Button BotaoMenu(string texto, string tag, bool filho)
+    {
+        var b = new Button
+        {
+            Text = texto,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = filho ? Tema.Normal : Tema.Negrito,
+            ForeColor = Tema.Apagado,
+            BackColor = Tema.Lateral,
+            FlatStyle = FlatStyle.Flat,
+            Size = new Size(filho ? 180 : 196, filho ? 36 : 44),
+            Padding = new Padding(filho ? 30 : 12, 0, 0, 0),
+            Cursor = Cursors.Hand,
+            Tag = tag
+        };
+        b.FlatAppearance.BorderSize = 0;
+        b.FlatAppearance.MouseOverBackColor = Tema.Card;
+        lateral.Controls.Add(b);
+        return b;
+    }
+
     private void MontarLateral()
     {
         lateral.Dock = DockStyle.Left;
@@ -138,50 +174,86 @@ internal class JanelaPrincipal : Form
         sub.Location = new Point(25, 62);
         lateral.Controls.Add(sub);
 
-        int y = 120;
-        foreach (var (chave, texto) in new[]
-                 { ("inicio", "⚡  Início"), ("checagem", "🩺  Checagem"), ("jogos", "📚  Biblioteca"), ("competitivo", "🏆  Competitivo"), ("benchmark", "📊  Benchmark"), ("pros", "⭐  Config de pros"), ("restauracao", "🛟  Restauração"), ("ferramentas", "🛠  Ferramentas") })
+        foreach (var item in Menu)
         {
-            var b = new Button
+            if (item.Filhos == null)
             {
-                Text = texto,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Font = Tema.Negrito,
-                ForeColor = Tema.Apagado,
-                BackColor = Tema.Lateral,
-                FlatStyle = FlatStyle.Flat,
-                Size = new Size(196, 44),
-                Location = new Point(12, y),
-                Padding = new Padding(12, 0, 0, 0),
-                Cursor = Cursors.Hand,
-                Tag = chave
-            };
-            b.FlatAppearance.BorderSize = 0;
-            b.FlatAppearance.MouseOverBackColor = Tema.Card;
-            b.Click += (s, _) => Mostrar((string)((Button)s).Tag);
-            lateral.Controls.Add(b);
-            abas[chave] = b;
-            y += 50;
+                var b = BotaoMenu(item.Texto, item.Chave, false);
+                b.Click += (s, _) => Mostrar((string)((Button)s).Tag);
+                abas[item.Chave] = b;
+            }
+            else
+            {
+                var g = BotaoMenu(item.Texto + "   ▸", item.Chave, false);
+                string chaveGrupo = item.Chave, primeiro = item.Filhos[0].Chave;
+                g.Click += (_, _) =>
+                {
+                    if (gruposAbertos.Contains(chaveGrupo)) gruposAbertos.Remove(chaveGrupo);
+                    else { gruposAbertos.Add(chaveGrupo); Mostrar(primeiro); return; }
+                    ReorganizarMenu();
+                };
+                grupos[item.Chave] = g;
+                foreach (var (chave, texto) in item.Filhos)
+                {
+                    var f = BotaoMenu(texto, chave, true);
+                    f.Click += (s, _) => Mostrar((string)((Button)s).Tag);
+                    abas[chave] = f;
+                }
+            }
         }
 
         lblVersao.Location = new Point(22, 740);
         lblVersao.MaximumSize = new Size(190, 0);
         lateral.Controls.Add(lblVersao);
+        ReorganizarMenu();
+    }
+
+    private void ReorganizarMenu()
+    {
+        int y = 120;
+        foreach (var item in Menu)
+        {
+            if (item.Filhos == null)
+            {
+                abas[item.Chave].Location = new Point(12, y);
+                y += 50;
+                continue;
+            }
+            bool aberto = gruposAbertos.Contains(item.Chave);
+            bool ativo = item.Filhos.Any(f => f.Chave == paginaAtual);
+            var g = grupos[item.Chave];
+            g.Location = new Point(12, y);
+            g.Text = item.Texto + (aberto ? "   ▾" : "   ▸");
+            g.ForeColor = ativo ? Tema.Destaque : Tema.Apagado;
+            y += 48;
+            foreach (var (chave, _) in item.Filhos)
+            {
+                var f = abas[chave];
+                f.Visible = aberto;
+                if (aberto) { f.Location = new Point(28, y); y += 38; }
+            }
+            if (aberto) y += 6;
+        }
     }
 
     private void Mostrar(string chave)
     {
+        paginaAtual = chave;
+        foreach (var item in Menu.Where(m => m.Filhos != null && m.Filhos.Any(f => f.Chave == chave)))
+            gruposAbertos.Add(item.Chave);
         foreach (var (k, p) in paginas) p.Visible = k == chave;
         foreach (var (k, b) in abas)
         {
             b.BackColor = k == chave ? Tema.Card : Tema.Lateral;
             b.ForeColor = k == chave ? Tema.Destaque : Tema.Apagado;
         }
+        ReorganizarMenu();
     }
 
     private Panel NovaPagina(string titulo, string subtitulo)
     {
         var p = new Panel { Dock = DockStyle.Fill, BackColor = Tema.Fundo, AutoScroll = true, Padding = new Padding(30, 26, 30, 20) };
+        Tema.Escurecer(p);
         var t = Tema.Rotulo(titulo, Tema.Titulo);
         t.Location = new Point(30, 24);
         p.Controls.Add(t);
@@ -261,55 +333,56 @@ internal class JanelaPrincipal : Form
     private Panel MontarInicio()
     {
         var p = NovaPagina("Pronto pra jogar?", null);
-        lblSpecs.Location = new Point(33, 72);
+        p.AutoScroll = false; // tudo cabe na tela, sem barra de rolagem
+        lblSpecs.Location = new Point(33, 70);
         lblSpecs.MaximumSize = new Size(LarguraUtil, 0);
         p.Controls.Add(lblSpecs);
 
         // ---------- Nota ----------
-        var nota = Card(30, 104, 270, 220, "Teu PC está");
-        lblNota.Location = new Point(14, 36);
+        var nota = Card(30, 100, 270, 200, "Teu PC está");
+        lblNota.Location = new Point(14, 34);
         nota.Controls.Add(lblNota);
-        lblNotaTxt.Location = new Point(20, 104);
+        lblNotaTxt.Location = new Point(20, 100);
         lblNotaTxt.MaximumSize = new Size(236, 0);
         nota.Controls.Add(lblNotaTxt);
-        var verFalta = Tema.Botao("Ver o que falta", Tema.CardClaro, 150, 32);
+        var verFalta = Tema.Botao("Ver o que falta", Tema.CardClaro, 150, 30);
         verFalta.Font = Tema.Pequena;
-        verFalta.Location = new Point(18, 172);
+        verFalta.Location = new Point(18, 156);
         verFalta.Click += (_, _) => Mostrar("checagem");
         nota.Controls.Add(verFalta);
         p.Controls.Add(nota);
 
         // ---------- Ao vivo ----------
-        var vivo = Card(315, 104, 300, 220, "Ao vivo");
-        int y = 44;
+        var vivo = Card(315, 100, 300, 200, "Ao vivo");
+        int y = 40;
         foreach (var b in new[] { barCpu, barRam, barGpu })
         {
             b.Location = new Point(18, y);
             b.Width = 264;
             vivo.Controls.Add(b);
-            y += 54;
+            y += 50;
         }
         p.Controls.Add(vivo);
 
         // ---------- Temperatura ----------
-        var temp = Card(630, 104, 300, 220, "Temperatura da placa de vídeo");
-        lblTemp.Location = new Point(14, 36);
+        var temp = Card(630, 100, 300, 200, "Temperatura da placa de vídeo");
+        lblTemp.Location = new Point(14, 32);
         temp.Controls.Add(lblTemp);
-        lblTempInfo.Location = new Point(150, 50);
+        lblTempInfo.Location = new Point(150, 44);
         temp.Controls.Add(lblTempInfo);
-        lblTempExplica.Location = new Point(20, 104);
+        lblTempExplica.Location = new Point(20, 96);
         lblTempExplica.MaximumSize = new Size(264, 0);
         temp.Controls.Add(lblTempExplica);
         var faixas = Tema.Rotulo("até 50° parada  •  até 75° jogando  •  83°+ perde FPS", new Font("Segoe UI", 7.5f), Tema.Apagado);
-        faixas.Location = new Point(20, 192);
+        faixas.Location = new Point(20, 176);
         temp.Controls.Add(faixas);
         p.Controls.Add(temp);
 
         // ---------- Otimizar ----------
-        var otim = Card(30, 340, 900, 220);
-        btnOtimizar = Tema.Botao("⚡  OTIMIZAR AGORA", Tema.Destaque, 300, 64);
+        var otim = Card(30, 314, 900, 196);
+        btnOtimizar = Tema.Botao("⚡  OTIMIZAR AGORA", Tema.Destaque, 300, 60);
         btnOtimizar.Font = new Font("Segoe UI", 14f, FontStyle.Bold);
-        btnOtimizar.Location = new Point(24, 24);
+        btnOtimizar.Location = new Point(24, 22);
         btnOtimizar.Click += async (_, _) => await Otimizar();
         otim.Controls.Add(btnOtimizar);
 
@@ -317,42 +390,36 @@ internal class JanelaPrincipal : Form
             "Limpa temporários e lixeira, fecha launchers de fundo, liga Modo de Jogo e Alto Desempenho,\n" +
             "desliga a gravação em segundo plano e libera a RAM em espera. Tudo pode ser desfeito.",
             Tema.Pequena, Tema.Apagado);
-        expl.Location = new Point(344, 28);
+        expl.Location = new Point(344, 24);
         otim.Controls.Add(expl);
 
-        lblStatus.Location = new Point(344, 70);
+        lblStatus.Location = new Point(344, 64);
         otim.Controls.Add(lblStatus);
 
-        lblResultado.Location = new Point(24, 104);
+        lblResultado.Location = new Point(24, 98);
         lblResultado.MaximumSize = new Size(850, 0);
         otim.Controls.Add(lblResultado);
 
-        lblContador.Location = new Point(24, 190);
+        lblContador.Location = new Point(24, 166);
         otim.Controls.Add(lblContador);
         p.Controls.Add(otim);
 
         // ---------- Saúde ----------
-        var saude = Card(30, 575, 440, 250, "Saúde do PC");
-        lblSaudeTitulo.Location = new Point(18, 40);
+        var saude = Card(30, 524, 440, 216, "Saúde do PC");
+        lblSaudeTitulo.Location = new Point(18, 38);
         saude.Controls.Add(lblSaudeTitulo);
-        lblSaudeDet.Location = new Point(18, 66);
-        lblSaudeDet.MaximumSize = new Size(404, 0);
+        lblSaudeDet.Location = new Point(18, 62);
+        lblSaudeDet.MaximumSize = new Size(404, 145);
         saude.Controls.Add(lblSaudeDet);
         p.Controls.Add(saude);
 
         // ---------- O que mais pesa ----------
-        var top = Card(490, 575, 440, 250, "O que mais está usando RAM");
-        lblTop.Location = new Point(18, 44);
+        var top = Card(490, 524, 440, 216, "O que mais está usando RAM");
+        lblTop.Location = new Point(18, 40);
         lblTop.AutoSize = false;
-        lblTop.Size = new Size(404, 190);
+        lblTop.Size = new Size(404, 165);
         top.Controls.Add(lblTop);
         p.Controls.Add(top);
-
-        var dica = Tema.Rotulo(
-            "💡 O maior salto de FPS vem das configs do jogo. Vê a aba Biblioteca.",
-            Tema.Pequena, Tema.Apagado);
-        dica.Location = new Point(33, 840);
-        p.Controls.Add(dica);
 
         return p;
     }
@@ -504,6 +571,7 @@ internal class JanelaPrincipal : Form
         listaChecagem.Size = new Size(900, 560);
         listaChecagem.BackColor = Tema.Card;
         listaChecagem.AutoScroll = true;
+        Tema.Escurecer(listaChecagem);
         p.Controls.Add(listaChecagem);
         return p;
     }
@@ -578,7 +646,7 @@ internal class JanelaPrincipal : Form
 
     private Panel MontarJogos()
     {
-        var p = NovaPagina("Biblioteca", null);
+        var p = NovaPagina("Meus jogos", null);
         lblNivel.Location = new Point(33, 72);
         lblNivel.MaximumSize = new Size(LarguraUtil, 0);
         lblNivel.Text = "Procurando teus jogos...";
@@ -593,6 +661,7 @@ internal class JanelaPrincipal : Form
         listaBiblioteca.DrawMode = DrawMode.OwnerDrawFixed;
         listaBiblioteca.ItemHeight = 46;
         listaBiblioteca.DrawItem += DesenharItemBiblioteca;
+        Tema.Escurecer(listaBiblioteca);
         listaBiblioteca.SelectedIndexChanged += (_, _) => MostrarJogo();
         p.Controls.Add(listaBiblioteca);
 
@@ -600,6 +669,7 @@ internal class JanelaPrincipal : Form
         detalheJogo.Size = new Size(634, 620);
         detalheJogo.BackColor = Tema.Card;
         detalheJogo.AutoScroll = true;
+        Tema.Escurecer(detalheJogo);
         p.Controls.Add(detalheJogo);
         return p;
     }
@@ -836,7 +906,7 @@ internal class JanelaPrincipal : Form
         lblCompJogo.Text = !on ? "" : ModoCompetitivo.JogoAtual != null
             ? $"Jogo detectado: {ModoCompetitivo.JogoAtual} (com prioridade)  •  ligado desde {ModoCompetitivo.LigadoEm:HH:mm}"
             : $"Esperando tu abrir o jogo...  •  ligado desde {ModoCompetitivo.LigadoEm:HH:mm}";
-        abas["competitivo"].Text = on ? "🏆  Competitivo  🟢" : "🏆  Competitivo";
+        abas["competitivo"].Text = on ? "Competitivo  🟢" : "Competitivo";
     }
 
     private async Task TestarConexao(ModoCompetitivo.Conexao antes)
@@ -1109,7 +1179,7 @@ internal class JanelaPrincipal : Form
     }
 
     // =====================================================================
-    //  Página: Config de pros
+    //  Página: Mira dos pros
     // =====================================================================
 
     private readonly Panel listaPros = new();
@@ -1118,26 +1188,27 @@ internal class JanelaPrincipal : Form
 
     private Panel MontarPros()
     {
-        var p = NovaPagina("Config de pros", "Mira e sensibilidade dos pros. Clica em \"Copiar mira\" e importa no jogo.");
+        var p = NovaPagina("Mira dos pros", "Vê a mira desenhada, copia o código e importa no jogo. O botão ProSettings abre a config completa do jogador.");
         int x = 30;
         foreach (var lj in Pros.Jogos)
         {
             var b = Tema.Botao(lj.Jogo, Tema.CardClaro, 190, 36);
-            b.Location = new Point(x, 104);
+            b.Location = new Point(x, 100);
             string jogo = lj.Jogo;
             b.Click += (_, _) => MostrarPros(jogo);
             p.Controls.Add(b);
             abasPros[lj.Jogo] = b;
             x += 200;
         }
-        lblComoImportar.Location = new Point(33, 150);
+        lblComoImportar.Location = new Point(33, 146);
         lblComoImportar.MaximumSize = new Size(LarguraUtil, 0);
         p.Controls.Add(lblComoImportar);
 
         listaPros.Location = new Point(30, 196);
-        listaPros.Size = new Size(900, 530);
-        listaPros.BackColor = Tema.Card;
+        listaPros.Size = new Size(904, 540);
+        listaPros.BackColor = Tema.Fundo;
         listaPros.AutoScroll = true;
+        Tema.Escurecer(listaPros);
         p.Controls.Add(listaPros);
         MostrarPros(Pros.Jogos[0].Jogo);
         return p;
@@ -1151,47 +1222,108 @@ internal class JanelaPrincipal : Form
             b.BackColor = k == jogo ? Tema.Destaque : Tema.CardClaro;
             b.ForeColor = k == jogo ? Color.FromArgb(10, 12, 20) : Color.White;
         }
-        lblComoImportar.Text = $"{lj.ComoImportar}\nFonte: {lj.Fonte}, conferido em {lj.Conferido}. Os pros trocam de mira com frequência, então pode ter mudado.";
+        lblComoImportar.Text = $"{lj.ComoImportar}\nFonte: {lj.Fonte}, conferido em {lj.Conferido}. Os pros trocam de mira com frequência.";
 
         listaPros.SuspendLayout();
+        foreach (Control c in listaPros.Controls.Cast<Control>().ToList()) c.Dispose();
         listaPros.Controls.Clear();
-        int y = 8;
-        foreach (var pro in lj.Lista)
+        listaPros.AutoScrollPosition = new Point(0, 0);
+
+        int y = 0;
+        foreach (var time in lj.Times)
         {
-            var nome = Tema.Rotulo($"{pro.Pais} {pro.Nome}", Tema.Negrito);
-            nome.Location = new Point(18, y + 4);
-            listaPros.Controls.Add(nome);
-            if (!string.IsNullOrEmpty(pro.Time))
+            // cabeçalho do time
+            var barra = new Panel { BackColor = time.Cor, Location = new Point(0, y + 4), Size = new Size(4, 22) };
+            listaPros.Controls.Add(barra);
+            var nomeTime = Tema.Rotulo(time.Nome.ToUpperInvariant(), new Font("Segoe UI", 12f, FontStyle.Bold), time.Cor);
+            nomeTime.Location = new Point(12, y + 2);
+            listaPros.Controls.Add(nomeTime);
+            if (time.Obs != null)
             {
-                var time = Tema.Rotulo(pro.Time, Tema.Pequena, Tema.Apagado);
-                time.Location = new Point(190, y + 6);
-                listaPros.Controls.Add(time);
+                var obs = Tema.Rotulo(time.Obs, Tema.Pequena, Tema.Apagado);
+                obs.Location = new Point(nomeTime.PreferredWidth + 24, y + 7);
+                listaPros.Controls.Add(obs);
             }
+            y += 36;
 
-            string linha2 = pro.Mira ?? pro.Detalhe ?? "";
-            var det = Tema.Rotulo(linha2.Length > 70 ? linha2[..70] + "…" : linha2, pro.Mira != null ? Tema.Mono : Tema.Pequena, Tema.Apagado);
-            det.Location = new Point(18, y + 30);
-            listaPros.Controls.Add(det);
-
-            if (pro.Mira != null)
+            for (int i = 0; i < time.Jogadores.Length; i++)
             {
-                var b = Tema.Botao("Copiar mira", Tema.CardClaro, 130, 32);
-                b.Font = Tema.Pequena;
-                b.Location = new Point(730, y + 10);
-                string codigo = pro.Mira;
-                string quem = pro.Nome;
-                b.Click += (s, _) =>
-                {
-                    try { Clipboard.SetText(codigo); } catch { }
-                    ((Button)s).Text = "✅ Copiado!";
-                    ((Button)s).BackColor = Tema.Verde;
-                    ((Button)s).ForeColor = Color.FromArgb(10, 12, 20);
-                };
-                listaPros.Controls.Add(b);
+                var pro = time.Jogadores[i];
+                int col = i % 2;
+                var card = CartaoPro(pro, time, lj.Jogo);
+                card.Location = new Point(col * 446, y);
+                listaPros.Controls.Add(card);
+                if (col == 1 || i == time.Jogadores.Length - 1) y += card.Height + 12;
             }
-            y += 62;
+            y += 14;
         }
         listaPros.ResumeLayout();
+    }
+
+    private Panel CartaoPro(Pros.Pro pro, Pros.Time time, string jogo)
+    {
+        var c = new Panel { Size = new Size(434, 124), BackColor = Tema.Card };
+
+        // prévia da mira
+        var previa = new PreviaMira { Location = new Point(10, 10), Size = new Size(104, 104) };
+        if (pro.Mira != null)
+            previa.Desenho = pro.Mira.StartsWith("CS") ? Mira.LerCs2(pro.Mira) : Mira.LerValorant(pro.Mira);
+        if (jogo == "Fortnite") previa.Visible = false;
+        c.Controls.Add(previa);
+        int x0 = jogo == "Fortnite" ? 16 : 128;
+
+        // bandeira (baixa sozinha)
+        var bandeira = new PictureBox { Location = new Point(x0, 14), Size = new Size(30, 20), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Tema.CardClaro };
+        c.Controls.Add(bandeira);
+        _ = Task.Run(async () =>
+        {
+            var img = await Bandeiras.Carregar(pro.Pais);
+            if (img != null && !bandeira.IsDisposed)
+                bandeira.BeginInvoke(new Action(() => { if (!bandeira.IsDisposed) { bandeira.Image = img; bandeira.BackColor = Color.Transparent; } }));
+        });
+
+        var nome = Tema.Rotulo(pro.Nome, new Font("Segoe UI Semibold", 12f), Tema.Texto);
+        nome.Location = new Point(x0 + 38, 10);
+        c.Controls.Add(nome);
+
+        var timeLbl = Tema.Rotulo(time.Nome == "Pros" ? (pro.Pais ?? "").ToUpperInvariant() : time.Nome, Tema.Pequena, time.Cor);
+        timeLbl.Location = new Point(x0 + 2, 40);
+        c.Controls.Add(timeLbl);
+
+        string info = pro.Detalhe ?? (pro.Mira == null ? "Sem código público confiável: vê no ProSettings" : null);
+        if (info != null)
+        {
+            var det = Tema.Rotulo(info, Tema.Pequena, Tema.Apagado);
+            det.Location = new Point(x0 + 2, 60);
+            det.MaximumSize = new Size(434 - x0 - 12, 0);
+            c.Controls.Add(det);
+        }
+
+        int bx = x0;
+        if (pro.Mira != null)
+        {
+            var copiar = Tema.Botao("Copiar mira", Tema.Destaque, 130, 30);
+            copiar.Font = Tema.Pequena;
+            copiar.Location = new Point(bx, 84);
+            string codigo = pro.Mira;
+            copiar.Click += (s, _) =>
+            {
+                try { Clipboard.SetText(codigo); } catch { }
+                var bt = (Button)s;
+                bt.Text = "✅ Copiado!";
+                bt.BackColor = Tema.Verde;
+            };
+            c.Controls.Add(copiar);
+            bx += 140;
+        }
+
+        var ps = Tema.Botao("ProSettings ↗", Tema.CardClaro, 140, 30);
+        ps.Font = Tema.Pequena;
+        ps.Location = new Point(bx, 84);
+        string url = $"https://prosettings.net/players/{pro.Slug}/";
+        ps.Click += (_, _) => Sistema.Abrir(url);
+        c.Controls.Add(ps);
+        return c;
     }
 
     // =====================================================================
@@ -1200,7 +1332,7 @@ internal class JanelaPrincipal : Form
 
     private Panel MontarRestauracao()
     {
-        var p = NovaPagina("Restauração",
+        var p = NovaPagina("Ponto de restauração",
             "Um ponto de restauração é uma \"foto\" das configurações do Windows. Se algo der errado depois de instalar um driver ou mudar algo, " +
             "tu volta pra ela. Teus arquivos (fotos, documentos, jogos) NÃO são apagados.");
 
@@ -1242,6 +1374,7 @@ internal class JanelaPrincipal : Form
         listaPontos.Size = new Size(900, 430);
         listaPontos.BackColor = Tema.Card;
         listaPontos.AutoScroll = true;
+        Tema.Escurecer(listaPontos);
         p.Controls.Add(listaPontos);
         return p;
     }

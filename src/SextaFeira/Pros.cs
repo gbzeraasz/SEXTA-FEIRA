@@ -1,18 +1,27 @@
 namespace SextaFeira;
 
 /// <summary>
-/// Configs e miras de pros. Os pros trocam de mira com frequência e as fontes às vezes discordam,
-/// por isso cada lista mostra de onde veio e quando foi conferida. Atualizado pelo Claude.
+/// Miras dos pros por time. Os códigos de CS2 estão no formato novo ("CS...", desde 30/09/2026)
+/// e foram conferidos pelo checksum. Quem não tem código público confiável fica só com o link do ProSettings.
+/// Atualizado pelo Claude.
 /// </summary>
 internal static class Pros
 {
     public class Pro
     {
         public string Nome;
-        public string Time;
-        public string Pais;      // emoji da bandeira
-        public string Mira;      // código pra importar (null = jogo sem código de mira)
+        public string Pais;      // código ISO de 2 letras (bandeira)
+        public string Mira;      // código pra importar (null = sem código confiável)
         public string Detalhe;   // sens, DPI etc.
+        public string Slug => Nome.ToLowerInvariant().Replace(" ", "-");
+    }
+
+    public class Time
+    {
+        public string Nome;
+        public Color Cor;
+        public string Obs;
+        public Pro[] Jogadores;
     }
 
     public class ListaJogo
@@ -21,53 +30,127 @@ internal static class Pros
         public string ComoImportar;
         public string Fonte;
         public string Conferido;
-        public Pro[] Lista;
+        public Time[] Times;
     }
+
+    private static Pro P(string nome, string pais, string mira = null, string detalhe = null) =>
+        new() { Nome = nome, Pais = pais, Mira = mira, Detalhe = detalhe };
 
     public static readonly ListaJogo[] Jogos =
     {
         new ListaJogo
         {
             Jogo = "Counter-Strike 2",
-            ComoImportar = "No CS2: Configurações → Jogo → Mira → Compartilhar ou importar → cola o código.",
-            Fonte = "tradeit.gg e PCGamesN",
+            ComoImportar = "No CS2: Configurações → Jogo → Mira → Compartilhar ou importar → cola o código. Só o formato novo (começa com CS, sem traços) funciona desde 30/09/2026.",
+            Fonte = "cs2crosshaircode.com e procrosshairs.com (códigos conferidos pelo checksum)",
             Conferido = "nov/2026",
-            Lista = new[]
+            Times = new[]
             {
-                new Pro { Nome = "donk", Time = "Team Spirit", Pais = "🇷🇺", Mira = "CSGO-2uZLz-jXPTZ-SUkJx-dmJyv-UxQRO" },
-                new Pro { Nome = "ZywOo", Time = "Vitality", Pais = "🇫🇷", Mira = "CSGO-KDOkV-jUpoE-GdhAh-YzbZL-MYXTB" },
-                new Pro { Nome = "m0NESY", Time = "Falcons", Pais = "🇷🇺", Mira = "CSGO-JV6Rw-9sfQB-UzokG-SHqBx-sbK5O" },
-                new Pro { Nome = "NiKo", Time = "Falcons", Pais = "🇧🇦", Mira = "CSGO-m89VO-6zPDr-53TJ9-OySAJ-V8Y2Q" },
-                new Pro { Nome = "sh1ro", Time = "Team Spirit", Pais = "🇷🇺", Mira = "CSGO-bk5KR-52jw7-tKRaw-7kzdw-hOxoO" },
-                new Pro { Nome = "ropz", Time = "Vitality", Pais = "🇪🇪", Mira = "CSGO-RLHnF-xbYw5-ZBiB5-MEOKJ-edK5O" },
-                new Pro { Nome = "KSCERATO", Time = "FURIA", Pais = "🇧🇷", Mira = "CSGO-uSeWF-F4v3i-yzDJ7-OEThH-CFCEB" },
-                new Pro { Nome = "molodoy", Time = "FURIA", Pais = "🇰🇿", Mira = "CSGO-Un9sK-tQVUX-avrUV-WXfxK-pBtdA" },
-                new Pro { Nome = "FalleN", Time = "lenda do CS brasileiro", Pais = "🇧🇷", Mira = "CSGO-ssxCh-Y9LFi-B9amu-NWkZo-ObaAB" },
-                new Pro { Nome = "Twistzz", Time = "FaZe", Pais = "🇨🇦", Mira = "CSGO-Q3Syz-WOaGL-9WTqW-9N3iJ-e64RG" },
-                new Pro { Nome = "b1t", Time = "NAVI", Pais = "🇺🇦", Mira = "CSGO-u2H9q-R3KDb-ijHuY-Bfizr-J9T8N" },
-                new Pro { Nome = "torzsi", Time = "MOUZ", Pais = "🇭🇺", Mira = "CSGO-hP4eK-PqkTQ-jo4T7-cmpxc-ZHZML" },
+                new Time
+                {
+                    Nome = "FURIA", Cor = Color.FromArgb(230, 230, 230),
+                    Jogadores = new[]
+                    {
+                        P("FalleN", "br", "CSaGZfHaBrr5bU6mQbnXniJFEmwP6KF9yUfeiOwFiBThYD"),
+                        P("KSCERATO", "br", "CSXVQtCujeaNWjvQatoVBuqiWcRLPqAUAJ4AFee9yd25dO"),
+                        P("yuurih", "br", "CSHMaMsuZ4tkuSMkpx6ajXU9XyuWcjcxMG5nKQKj8STPGH"),
+                        P("YEKINDAR", "lv", "CSHwwEuPeaioROD9qTvmN7HT3umotat8EACz2BvTXsPUJe"),
+                        P("molodoy", "kz", "CSpxaYsCrCP5Hk4GPu7Kmv2z2QFpzrNGuwX2RTWNb628CU"),
+                    }
+                },
+                new Time
+                {
+                    Nome = "Falcons", Cor = Color.FromArgb(0, 173, 120),
+                    Obs = "Só os jogadores com código confirmado.",
+                    Jogadores = new[]
+                    {
+                        P("NiKo", "ba", "CSfSQt6wxXdaV3OxDRzaS6FoQX2ortyyinwaXvwsNiJAcV"),
+                        P("m0NESY", "ru", "CSrcC2jkTYnczGVYqNkDS9ABC3JuTcKcQzDx3ROs8hvmQi"),
+                        P("kyousuke", "ru", "CSjjQVLnqmjh7O3G3VADW9tw3o3DTNavZfDsNDd7byXdxJ"),
+                    }
+                },
+                new Time
+                {
+                    Nome = "Vitality", Cor = Color.FromArgb(255, 214, 0),
+                    Jogadores = new[]
+                    {
+                        P("apEX", "fr", "CSHhdAW9O6Kujk5Wc8i2YOYzJsQiQk8hP2XJbEfHTMtnQi"),
+                        P("ZywOo", "fr", "CS4N3cTLGtbqN5JxffWv6vBB5dqiCwEP55KQhZQ4bJ4JQE"),
+                        P("ropz", "ee", "CSUxjvBKxbaTKG5sfdufqzDvzeAiaTuveQmT6XFOvWmvAc"),
+                        P("flameZ", "il", "CSCTWJSVydL9ecJ292AFNuNd7tj4qfJTDzV34iQqryCjhj"),
+                        P("mezii", "gb", "CSvfsMCShd5uL4nTGYcUtuSqy4PJRHmCU6UoT9q5FK6DHE"),
+                    }
+                },
+                new Time
+                {
+                    Nome = "Team Spirit", Cor = Color.FromArgb(150, 150, 160),
+                    Jogadores = new[]
+                    {
+                        P("donk", "ru", "CS2VkbZz3rjH7UzZTUsLDYH7O25fYRoviPYK8eym3XtVhE"),
+                        P("sh1ro", "ru", "CSDcomrJBKpqwRGP3676xoNKTGhHdCOaZ6xY5v5wUQHzyD"),
+                        P("magixx", "ru", "CSOO4jyrC6XY2puAqtAdDeVK6Tmc77UpYwh9MkiDHQubnQ"),
+                        P("zont1x", "ua", "CSNA85FOmKJfsbrdsdhBuM6hxKnvw5wGDytDWVbNXzvT8m"),
+                        P("tN1R", "by"),
+                    }
+                },
             }
         },
         new ListaJogo
         {
             Jogo = "Valorant",
-            ComoImportar = "No Valorant: Configurações → Mira → botão de importar perfil (ícone de seta) → cola o código.",
-            Fonte = "PCGamesN",
+            ComoImportar = "No Valorant: Configurações → Mira → botão de importar perfil → cola o código.",
+            Fonte = "PCGamesN, valorant-spind.de, specs.gg, esportsettings.com e crosshair-pro.com",
             Conferido = "nov/2026",
-            Lista = new[]
+            Times = new[]
             {
-                new Pro { Nome = "Less", Time = "KRÜ", Pais = "🇧🇷", Mira = "0;s;1;P;c;8;u;000000FF;h;0;b;1;f;0;0l;4;0o;0;0a;1;0f;0;1b;0" },
-                new Pro { Nome = "mwzera", Time = "KRÜ", Pais = "🇧🇷", Mira = "0;P;c;4;h;0;f;0;0l;2;0o;2;0a;1;0f;0;1b;0" },
-                new Pro { Nome = "saadhak", Time = "KRÜ", Pais = "🇦🇷", Mira = "0;P;o;1;d;1;f;0;0b;0;1b;0" },
-                new Pro { Nome = "kiNgg", Time = "Leviatán", Pais = "🇨🇱", Mira = "0;P;c;8;u;000000FF;h;0;b;1;0l;4;0o;0;0a;1;0f;0;1b;0" },
-                new Pro { Nome = "f0rsakeN", Time = "Paper Rex", Pais = "🇮🇩", Mira = "0;s;1;P;u;000000FF;o;1;s;0;0t;3;0l;1;0v;0;0g;1;0o;0;0a;1;0f;0;1t;1;1l;4;1g;1;1o;0;1a;1;1m;0;1f;0;S;c;0;s;0.9;o;1" },
-                new Pro { Nome = "Jinggg", Time = "Paper Rex", Pais = "🇸🇬", Mira = "0;s;1;P;c;1;o;1;0t;1;0l;2;0o;2;0a;1;0f;0;1b;0;S;c;5" },
-                new Pro { Nome = "something", Time = "Paper Rex", Pais = "🇷🇺", Mira = "0;P;o;0.619;d;1;f;0;s;0;0t;1;0l;0;0o;2;0a;1;0f;0;1b;0" },
-                new Pro { Nome = "Boaster", Time = "Fnatic", Pais = "🇬🇧", Mira = "0;s;1;P;c;1;o;1;d;1;0l;0;0o;2;0a;1;0f;0;1t;0;1l;0;1o;0;1a;0;S;c;1;o;1" },
-                new Pro { Nome = "crashies", Time = "Fnatic", Pais = "🇺🇸", Mira = "0;P;h;0;0l;3;0v;3;0g;1;0o;2;0a;1;1b;0" },
-                new Pro { Nome = "benjyfishy", Time = "Team Heretics", Pais = "🇬🇧", Mira = "0;P;c;7;h;0;0l;4;0o;0;0a;1;0f;0;1b;0" },
-                new Pro { Nome = "stax", Time = "T1", Pais = "🇰🇷", Mira = "0;p;0;P;h;0;f;0;0l;3;0o;2;0a;1;0f;0;1b;0" },
-                new Pro { Nome = "shroud", Time = "criador de conteúdo", Pais = "🇨🇦", Mira = "0;P;o;0.506;d;1;z;1;0t;1;0l;4;0o;2;0a;1;0f;0;1b;0" },
+                new Time
+                {
+                    Nome = "LOUD", Cor = Color.FromArgb(0, 230, 90), Obs = "Elenco campeão do Champions 2026.",
+                    Jogadores = new[]
+                    {
+                        P("erde", "cl", "0;P;c;1;o;1;0t;1;0l;1;0o;1;0a;1;0f;0;1t;0;1l;0;1o;0;1a;0;1m;0;1f;0"),
+                        P("lukxo", "br"),
+                        P("tkzin", "br", "0;s;1;P;o;1;d;1;f;0;m;1;0l;1;0o;1;0a;1;0f;0;1t;0;1l;0;1o;0;1a;1;1m;0;1f;0"),
+                        P("DaviH", "pt"),
+                        P("Darker", "co"),
+                    }
+                },
+                new Time
+                {
+                    Nome = "NRG", Cor = Color.FromArgb(255, 110, 30), Obs = "Elenco do Champions 2026.",
+                    Jogadores = new[]
+                    {
+                        P("Ethan", "us", "0;P;h;0;0l;4;0o;0;0a;1;0f;0;1b;0"),
+                        P("brawk", "us", "0;P;c;1;o;1;0l;5;0a;1;0f;0;1b;0"),
+                        P("skuba", "us", "0;s;1;P;c;1;u;000000FF;h;0;f;0;m;1;0t;1;0l;3;0v;4;0o;2;0a;1;0f;0;1b;0;S;s;0.75;o;1"),
+                        P("mada", "ca", "0;s;1;P;u;000000FF;o;1;d;1;f;0;m;1;0l;2;0v;3;0o;0;0a;1;0f;0;1b;0;S;b;1;c;8;t;00FF66FF;o;1"),
+                        P("keiko", "gb", "0;s;1;P;u;000000FF;o;1;d;1;z;1;0b;0;1l;0;1a;0;1m;0;1f;0"),
+                    }
+                },
+                new Time
+                {
+                    Nome = "Vitality", Cor = Color.FromArgb(255, 214, 0), Obs = "Elenco do Champions 2026.",
+                    Jogadores = new[]
+                    {
+                        P("Derke", "fi", "0;P;o;1;0t;1;0l;4;0o;2;0a;1;0f;0;1t;0;1l;1;1o;0;1a;1;1m;0;1f;0"),
+                        P("Jamppi", "fi", "0;s;1;P;h;0;0l;4;0o;0;0a;1;0f;0;1b;0", "800 DPI  •  sens 0.317"),
+                        P("Chronicle", "ru", "0;P;h;0;f;0;0t;1;0l;4;0o;0;0a;1;0f;0;1b;0"),
+                        P("PROFEK", "pl"),
+                        P("Sayonara", "md", "0;s;1;P;o;1;d;1;0b;0;1b;0;S;c;0;s;0.457", "1600 DPI  •  sens 0.1"),
+                    }
+                },
+                new Time
+                {
+                    Nome = "Paper Rex", Cor = Color.FromArgb(240, 60, 140), Obs = "Elenco do Champions 2026.",
+                    Jogadores = new[]
+                    {
+                        P("f0rsakeN", "id", "0;p;0;c;1;s;1;P;h;0;f;0;s;0;0l;3;0v;3;0g;1;0o;0;0a;1;0f;0;1b;0;A;o;1;d;1;0b;0;1b;0;S;d;0"),
+                        P("something", "ru", "0;s;1;P;h;0;0l;2;0o;1;0a;1;0f;0;1b;0;S;c;0;s;0.713;o;1"),
+                        P("Jinggg", "sg", "0;s;1;P;c;1;o;1;0t;1;0l;2;0o;2;0a;1;0f;0;1b;0;S;c;5"),
+                        P("d4v41", "my", "0;s;1;P;h;0;0l;4;0o;2;0a;1;0f;0;1b;0"),
+                        P("invy", "ph", "0;s;1;P;o;1;f;0;0t;1;0l;1;0o;2;0a;0;0f;0;1t;1;1l;1;1v;3;1o;3;1a;0;1m;0;1f;0;S;o;0.8"),
+                    }
+                },
             }
         },
         new ListaJogo
@@ -76,11 +159,21 @@ internal static class Pros
             ComoImportar = "O Fortnite não tem código de mira. Copia a sensibilidade: Configurações → Mouse e teclado → Sensibilidade.",
             Fonte = "gamerhardware.org",
             Conferido = "nov/2026",
-            Lista = new[]
+            Times = new[]
             {
-                new Pro { Nome = "Bugha", Pais = "🇺🇸", Time = "", Detalhe = "800 DPI  •  Sens X/Y: 6%  •  Mira: 55%  •  Luneta: 55%" },
-                new Pro { Nome = "Clix", Pais = "🇺🇸", Time = "", Detalhe = "800 DPI  •  Sens X/Y: 7%  •  Mira: 50%  •  Luneta: 50%" },
-                new Pro { Nome = "Mongraal", Pais = "🇬🇧", Time = "", Detalhe = "800 DPI  •  Sens X/Y: 6,5%  •  Mira: 55%  •  Luneta: 50%" },
+                new Time
+                {
+                    Nome = "Pros", Cor = Color.FromArgb(160, 110, 255),
+                    Jogadores = new[]
+                    {
+                        P("Bugha", "us", null, "800 DPI  •  Sens X/Y: 6%  •  Mira: 55%  •  Luneta: 55%"),
+                        P("Clix", "us", null, "800 DPI  •  Sens X/Y: 7%  •  Mira: 50%  •  Luneta: 50%"),
+                        P("Mongraal", "gb", null, "800 DPI  •  Sens X/Y: 6,5%  •  Mira: 55%  •  Luneta: 50%"),
+                        P("Peterbot", "us", null, "Config completa no ProSettings"),
+                        P("Cooper", "us", null, "Config completa no ProSettings"),
+                        P("Veno", "gb", null, "Config completa no ProSettings"),
+                    }
+                },
             }
         },
     };
