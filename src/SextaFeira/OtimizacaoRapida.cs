@@ -12,7 +12,11 @@ internal static class OtimizacaoRapida
             Mostrar("SEXTA-FEIRA", "Algo deu errado: " + ex.Message, ToolTipIcon.Error);
             return;
         }
+        // Enquanto mostra o aviso, já procura/baixa atualização em silêncio.
+        // Ela é aplicada sozinha quando este processo fechar.
+        var atualizacao = Task.Run(() => Atualizador.AtualizarEmSilencio());
         Mostrar("⚡ PC otimizado! Bom jogo", r.Frase(), ToolTipIcon.Info);
+        try { atualizacao.Wait(TimeSpan.FromSeconds(120)); } catch { }
     }
 
     private static void Mostrar(string titulo, string texto, ToolTipIcon icone)

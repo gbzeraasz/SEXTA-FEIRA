@@ -45,6 +45,8 @@ internal class JanelaPrincipal : Form
     private readonly TextBox txtProgramas = new();
 
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 2000 };
+    // Procura atualização de novo a cada 30 minutos enquanto o app estiver aberto
+    private readonly System.Windows.Forms.Timer timerAtualizacao = new() { Interval = 30 * 60 * 1000 };
 
     public JanelaPrincipal()
     {
@@ -77,7 +79,7 @@ internal class JanelaPrincipal : Form
 
         timer.Tick += async (_, _) => await AtualizarMonitor();
         Shown += async (_, _) => await Carregar();
-        FormClosing += (_, _) => timer.Stop();
+        FormClosing += (_, _) => { timer.Stop(); timerAtualizacao.Stop(); };
     }
 
     // =====================================================================
@@ -124,6 +126,7 @@ internal class JanelaPrincipal : Form
         }
 
         lblVersao.Location = new Point(22, 740);
+        lblVersao.MaximumSize = new Size(190, 0);
         lateral.Controls.Add(lblVersao);
     }
 
@@ -192,19 +195,24 @@ internal class JanelaPrincipal : Form
         conteudo.Controls.Add(faixaAtualizacao);
     }
 
+    private bool atualizacaoBaixada;
+    private bool procurandoAtualizacao;
+
     private async Task InstalarAtualizacao()
     {
-        if (atualizacao == null) return;
-        btnFaixa.Enabled = false;
-        try
+        if (atualizacao != null && atualizacaoBaixada)
         {
-            await Atualizador.BaixarEInstalar(atualizacao, p => BeginInvoke(new Action(() => lblFaixa.Text = $"Baixando atualização... {p}%")));
+            btnFaixa.Enabled = false;
+            lblFaixa.Text = "Reiniciando pra atualizar...";
+            try { Atualizador.AplicarEReiniciar(atualizacao); }
+            catch (Exception ex)
+            {
+                lblFaixa.Text = "Não deu pra atualizar agora: " + ex.Message;
+                btnFaixa.Enabled = true;
+            }
+            return;
         }
-        catch (Exception ex)
-        {
-            lblFaixa.Text = "Não deu pra atualizar agora: " + ex.Message;
-            btnFaixa.Enabled = true;
-        }
+        await ProcurarAtualizacao(true);
     }
 
     // =====================================================================
@@ -621,6 +629,11 @@ internal class JanelaPrincipal : Form
     {
         lblVersao.Text = "v" + Atualizador.VersaoAtual;
         timer.Start();
+
+        // Atualização vem PRIMEIRO e em paralelo com o resto (antes ficava pro final)
+        Task tarefaAtualizacao = Configuracao.Atual.AtualizarAutomaticamente ? ProcurarAtualizacao(false) : Task.CompletedTask;
+        timerAtualizacao.Tick += async (_, _) => await ProcurarAtualizacao(false);
+        timerAtualizacao.Start();
         _ = AtualizarMonitor();
         AtualizarContador();
 
@@ -649,22 +662,65 @@ internal class JanelaPrincipal : Form
         }
 
         await RodarChecagem();
-        if (Configuracao.Atual.AtualizarAutomaticamente) await ProcurarAtualizacao(false);
+        await tarefaAtualizacao;
     }
 
     private async Task ProcurarAtualizacao(bool avisarSeNaoTiver)
     {
-        atualizacao = await Atualizador.Verificar();
-        if (atualizacao != null)
+        if (procurandoAtualizacao) return;
+        procurandoAtualizacao = true;
+        string versao = "v" + Atualizador.VersaoAtual;
+        try
         {
-            lblFaixa.Text = $"🚀 Nova versão {atualizacao.TargetFullRelease.Version} disponível!";
+            if (atualizacaoBaixada)
+            {
+                if (avisarSeNaoTiver) MessageBox.Show("A versão nova já tá baixada! Clica em \"Reiniciar e atualizar\" lá em cima.", "SEXTA-FEIRA");
+                return;
+            }
+
+            lblVersao.Text = versao + "  •  procurando atualização...";
+            atualizacao = await Atualizador.Verificar();
+
+            if (atualizacao == null)
+            {
+                bool erro = Atualizador.UltimoErro != null;
+                lblVersao.Text = versao + (erro ? "  •  ⚠ sem atualização" : "  •  atualizado ✅");
+                if (avisarSeNaoTiver)
+                    MessageBox.Show(Atualizador.UltimoErro ?? "Tu já tá na versão mais nova!", "SEXTA-FEIRA",
+                        MessageBoxButtons.OK, erro ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+                return;
+            }
+
+            // Achou: já baixa em segundo plano, sem esperar clique
+            string nova = atualizacao.TargetFullRelease.Version.ToString();
+            lblVersao.Text = versao + $"  •  baixando v{nova}";
             faixaAtualizacao.Visible = true;
+            btnFaixa.Visible = false;
+            lblFaixa.Text = $"🚀 Baixando a versão {nova}... 0%";
+
+            await Atualizador.Baixar(atualizacao, p =>
+                BeginInvoke(new Action(() => lblFaixa.Text = $"🚀 Baixando a versão {nova}... {p}%")));
+
+            atualizacaoBaixada = true;
+            lblFaixa.Text = $"✅ Versão {nova} pronta pra instalar!";
+            btnFaixa.Text = "Reiniciar e atualizar";
+            btnFaixa.Visible = true;
+            btnFaixa.Enabled = true;
+            lblVersao.Text = versao + $"  •  v{nova} pronta";
         }
-        else if (avisarSeNaoTiver)
+        catch (Exception ex)
         {
-            MessageBox.Show(Atualizador.VersaoAtual == "dev"
-                ? "Essa cópia não foi instalada pelo instalador, então não atualiza sozinha."
-                : "Tu já tá na versão mais nova!", "SEXTA-FEIRA");
+            Atualizador.Log("ERRO no download: " + ex);
+            faixaAtualizacao.Visible = true;
+            lblFaixa.Text = "⚠ Não consegui baixar a atualização agora.";
+            btnFaixa.Text = "Tentar de novo";
+            btnFaixa.Visible = true;
+            btnFaixa.Enabled = true;
+            lblVersao.Text = versao;
+        }
+        finally
+        {
+            procurandoAtualizacao = false;
         }
     }
 }
