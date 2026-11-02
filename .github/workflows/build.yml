@@ -1,0 +1,67 @@
+name: Build e Release
+
+# A cada envio pra main, compila o app, empacota com o Velopack e publica uma Release.
+# Os apps instalados (o teu e dos teus amigos) acham a versão nova sozinhos.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      REPO_URL: https://github.com/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Definir versão
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "1.0.${{ github.run_number }}"
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Versão: $v"
+
+      - name: Colocar a chave de atualização
+        shell: pwsh
+        env:
+          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+        run: |
+          if (-not $env:UPDATE_TOKEN) { Write-Host "::warning::Secret UPDATE_TOKEN não configurado: os apps não vão conseguir se atualizar." }
+          $t = $env:UPDATE_TOKEN -replace '[^A-Za-z0-9_]', ''
+          @"
+          namespace SextaFeira;
+          internal static class Segredos
+          {
+              public const string TokenAtualizacao = "$t";
+          }
+          "@ | Set-Content -Path src/SextaFeira/Segredos.g.cs -Encoding utf8
+
+      - name: Compilar
+        run: dotnet publish src/SextaFeira/SextaFeira.csproj -c Release -r win-x64 --self-contained true -o publish -p:Version=${{ steps.ver.outputs.version }}
+
+      - name: Instalar Velopack
+        run: dotnet tool install -g vpk
+
+      - name: Baixar versão anterior (pra atualização pequena)
+        continue-on-error: true
+        run: vpk download github --repoUrl ${{ env.REPO_URL }} --token ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Empacotar
+        run: vpk pack --packId SEXTA-FEIRA --packVersion ${{ steps.ver.outputs.version }} --packDir publish --mainExe SEXTA-FEIRA.exe --packTitle "SEXTA-FEIRA" --icon src/SextaFeira/icone.ico
+
+      - name: Publicar Release
+        run: vpk upload github --repoUrl ${{ env.REPO_URL }} --token ${{ secrets.GITHUB_TOKEN }} --publish --releaseName "SEXTA-FEIRA ${{ steps.ver.outputs.version }}" --tag v${{ steps.ver.outputs.version }}
