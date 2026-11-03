@@ -1942,6 +1942,22 @@ internal class JanelaPrincipal : Form
         btnAjustesRede.Location = new Point(18, 216);
         btnAjustesRede.Click += async (_, _) => await AplicarAjustesRede();
         aj.Controls.Add(btnAjustesRede);
+        var desfazerRede = Tema.Botao("Desfazer", Tema.CardClaro, 110, 34);
+        desfazerRede.Location = new Point(240, 216);
+        desfazerRede.Click += async (_, _) =>
+        {
+            if (MessageBox.Show("Volta a placa de rede e o Windows Update exatamente como estavam antes da SEXTA-FEIRA mexer.\n\n" +
+                                "O cabo pode desconectar por 2-3 segundos. Continuar?", "SEXTA-FEIRA",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            desfazerRede.Enabled = false;
+            int n = await Task.Run(() => Backup.RestaurarRede());
+            Atualizador.Log($"Ajustes de rede desfeitos ({n})");
+            MessageBox.Show(n > 0 ? "Pronto, voltou tudo como era. Reinicia o PC e testa o jogo de novo pra comparar."
+                                  : "Não tinha nenhum ajuste de rede feito pela SEXTA-FEIRA pra desfazer.", "SEXTA-FEIRA");
+            desfazerRede.Enabled = true;
+            await AtualizarInfoRede();
+        };
+        aj.Controls.Add(desfazerRede);
         p.Controls.Add(aj);
         return p;
     }
@@ -2023,6 +2039,11 @@ internal class JanelaPrincipal : Form
     private async Task RodarBufferbloat()
     {
         if (testandoRede) return;
+        string jogoAberto = Jogos.JogoAberto();
+        if (jogoAberto != null &&
+            MessageBox.Show("Esse teste usa a internet no máximo por uns 40 segundos, e o jogo vai ficar com lag enquanto isso.\n\n" +
+                            "O ideal é rodar com o jogo fechado. Rodar mesmo assim?", "SEXTA-FEIRA",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         testandoRede = true;
         btnDiagnostico.Enabled = btnBufferbloat.Enabled = false;
         lblBbNota.Text = "...";
@@ -2447,6 +2468,16 @@ internal class JanelaPrincipal : Form
     private async Task ProcurarAtualizacao(bool avisarSeNaoTiver)
     {
         if (procurandoAtualizacao) return;
+        // Não baixa nada enquanto tu joga: download no meio da partida faz o ping disparar
+        if (!avisarSeNaoTiver && !atualizacaoBaixada)
+        {
+            string jogo = Jogos.JogoAberto();
+            if (jogo != null || ModoCompetitivo.Ativo)
+            {
+                Atualizador.Log($"Busca de atualização adiada: {(jogo ?? "Modo Competitivo")} ativo");
+                return;
+            }
+        }
         procurandoAtualizacao = true;
         string versao = "v" + Atualizador.VersaoAtual;
         try

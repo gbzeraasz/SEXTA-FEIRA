@@ -101,6 +101,8 @@ internal static class Atualizador
     {
         try
         {
+            string jogo = Jogos.JogoAberto();
+            if (jogo != null) { Log($"Atualização silenciosa adiada: {jogo} aberto (não gastar internet no jogo)"); return; }
             var info = await Verificar();
             if (info == null) return;
             var m = Criar();

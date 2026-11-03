@@ -115,6 +115,43 @@ internal static class Backup
         }
     }
 
+    private static void VoltarReg(ItemReg r)
+    {
+        var raiz = Sistema.Raiz(r.Caminho, out string sub);
+        using var k = raiz.CreateSubKey(sub, true);
+        if (!r.Existia) { k.DeleteValue(r.Nome, false); return; }
+        var tipo = Enum.Parse<RegistryValueKind>(r.Tipo);
+        object valor = tipo switch
+        {
+            RegistryValueKind.DWord => int.Parse(r.Valor),
+            RegistryValueKind.QWord => long.Parse(r.Valor),
+            _ => r.Valor
+        };
+        k.SetValue(r.Nome, valor, tipo);
+    }
+
+    /// <summary>Desfaz só os ajustes da aba Internet (Ethernet verde, economia da placa e envio do Windows Update).</summary>
+    public static int RestaurarRede()
+    {
+        lock (trava)
+        {
+            var d = Carregar();
+            int n = 0;
+            foreach (var id in d.Comandos.Keys.Where(k => k == "rede" || k.StartsWith("eee:")).ToList())
+            {
+                try { Sistema.Rodar(d.Comandos[id][0], d.Comandos[id][1], 60000); n++; } catch { }
+                d.Comandos.Remove(id);
+            }
+            foreach (var r in d.Registro.Where(r => r.Nome == "DODownloadMode").ToList())
+            {
+                try { VoltarReg(r); n++; } catch { }
+                d.Registro.Remove(r);
+            }
+            Salvar(d);
+            return n;
+        }
+    }
+
     /// <summary>Volta tudo como era antes. Retorna quantos itens foram restaurados.</summary>
     public static int Restaurar()
     {

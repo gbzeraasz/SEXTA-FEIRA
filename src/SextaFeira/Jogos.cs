@@ -18,6 +18,31 @@ internal static class Jogos
         public bool TemPerfilAutomatico;
     }
 
+    /// <summary>Processos de jogos online. Enquanto um deles estiver aberto, o app não usa a internet à toa.</summary>
+    private static readonly string[] ProcessosOnline =
+    {
+        "cs2", "VALORANT-Win64-Shipping", "FortniteClient-Win64-Shipping", "League of Legends", "r5apex", "r5apex_dx12",
+        "RainbowSix", "RainbowSix_Vulkan", "RocketLeague", "dota2", "cod", "Overwatch", "PUBG-Win64-Shipping", "TslGame",
+        "FreeFire", "GTA5", "GTA5_Enhanced", "Marvel-Win64-Shipping", "deadlock"
+    };
+
+    /// <summary>Nome do jogo online aberto agora (ou null).</summary>
+    public static string JogoAberto()
+    {
+        foreach (var nome in ProcessosOnline)
+        {
+            try
+            {
+                var ps = System.Diagnostics.Process.GetProcessesByName(nome);
+                bool achou = ps.Length > 0;
+                foreach (var p in ps) p.Dispose();
+                if (achou) return nome;
+            }
+            catch { }
+        }
+        return null;
+    }
+
     public static List<Jogo> Detectar()
     {
         var lista = new List<Jogo>();
