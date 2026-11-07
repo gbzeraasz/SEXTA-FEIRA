@@ -17,7 +17,7 @@ internal class ConfigJogo
     public string[] Pc = Array.Empty<string>();
     public Dictionary<NivelPC, string> PorNivel = new();
     public string Aviso;
-    public bool PerfilAutomatico;   // o app aplica sozinho (por enquanto só Fortnite)
+    public bool PerfilAutomatico;   // o app aplica sozinho (CS2, Valorant e Fortnite)
 }
 
 internal static class ConfigsCompetitivas
@@ -83,6 +83,7 @@ internal static class ConfigsCompetitivas
         new ConfigJogo
         {
             Nome = "Counter-Strike 2",
+            PerfilAutomatico = true,
             SteamIds = new[] { "730" },
             Palavras = new[] { "counter-strike" },
             Processos = new[] { "cs2" },
@@ -112,6 +113,7 @@ internal static class ConfigsCompetitivas
         new ConfigJogo
         {
             Nome = "Valorant",
+            PerfilAutomatico = true,
             Palavras = new[] { "valorant" },
             Processos = new[] { "VALORANT-Win64-Shipping" },
             Jogo = new[]

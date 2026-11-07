@@ -1251,15 +1251,30 @@ internal class JanelaPrincipal : Form
             Add("•  Clica em OTIMIZAR (ou liga o Modo Competitivo) antes de abrir o jogo", Tema.Normal, Tema.Texto, 30);
             foreach (var d in c.Pc) Add("•  " + d, Tema.Normal, Tema.Texto, 30);
 
-            if (c.PerfilAutomatico && c.Nome == "Fortnite")
+            if (c.PerfilAutomatico && c.Nome is "Fortnite" or "Counter-Strike 2" or "Valorant")
             {
                 y += 10;
-                bool ativo = Jogos.FortniteEmModoDesempenho();
-                var b = Tema.Botao(ativo ? "✅ Modo Desempenho ativo" : "Aplicar Modo Desempenho", ativo ? Tema.Verde : Tema.Destaque, 250, 38);
+                bool ativo = c.Nome switch
+                {
+                    "Fortnite" => Jogos.FortniteEmModoDesempenho(),
+                    "Counter-Strike 2" => Jogos.Cs2Otimizado(),
+                    _ => Jogos.ValorantOtimizado()
+                };
+                string textoBotao = c.Nome == "Fortnite"
+                    ? (ativo ? "✅ Modo Desempenho ativo" : "Aplicar Modo Desempenho")
+                    : (ativo ? "✅ Config competitiva aplicada" : "⚡ Aplicar config competitiva");
+                var b = Tema.Botao(textoBotao, ativo ? Tema.Verde : Tema.Destaque, 280, 38);
                 b.Location = new Point(22, y);
+                string nomeJogo = c.Nome;
                 b.Click += (_, _) =>
                 {
-                    MessageBox.Show(Jogos.AplicarPerfilFortnite(), "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    string msg = nomeJogo switch
+                    {
+                        "Fortnite" => Jogos.AplicarPerfilFortnite(),
+                        "Counter-Strike 2" => Jogos.AplicarPerfilCs2(),
+                        _ => Jogos.AplicarPerfilValorant()
+                    };
+                    MessageBox.Show(msg, "SEXTA-FEIRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     MostrarJogo();
                 };
                 detalheJogo.Controls.Add(b);

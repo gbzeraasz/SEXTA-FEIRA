@@ -197,6 +197,158 @@ internal static class Jogos
         ini.Salvar();
         return "Modo Desempenho aplicado! Abre o Fortnite e confere o ganho de FPS.";
     }
+
+    // ---------- Perfil competitivo do CS2 ----------
+    // Mesmos valores que o menu de vídeo do jogo grava (cs2_video.txt). Não mexe na resolução: isso é gosto teu.
+
+    private static readonly (string chave, string valor, string oQue)[] PerfilCs2 =
+    {
+        ("setting.videocfg_shadow_quality", "0", "Sombras: Baixo"),
+        ("setting.videocfg_dynamic_shadows", "1", "Sombras dinâmicas: Todas (pra ver a sombra do inimigo)"),
+        ("setting.videocfg_texture_detail", "0", "Texturas: Baixo"),
+        ("setting.shaderquality", "0", "Shaders: Baixo"),
+        ("setting.videocfg_particle_detail", "0", "Partículas: Baixo"),
+        ("setting.videocfg_ao_detail", "0", "Oclusão de ambiente: Desligada"),
+        ("setting.videocfg_hdr_detail", "3", "HDR: Desempenho"),
+        ("setting.msaa_samples", "0", "MSAA: desligado (é o que mais pesa no CS2)"),
+        ("setting.r_csgo_cmaa_enable", "1", "Anti-serrilhado leve: CMAA2"),
+        ("setting.r_texturefilteringquality", "1", "Filtro de textura: Trilinear"),
+        ("setting.videocfg_fsr_detail", "0", "FSR: desligado"),
+        ("setting.mat_vsync", "0", "V-Sync: desligado"),
+        ("setting.r_low_latency", "1", "NVIDIA Reflex: ligado"),
+    };
+
+    public static List<string> ArquivosCs2()
+    {
+        var l = new List<string>();
+        try
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
+            string steam = k?.GetValue("SteamPath")?.ToString()?.Replace('/', '\\');
+            string ud = steam == null ? null : Path.Combine(steam, "userdata");
+            if (ud != null && Directory.Exists(ud))
+                foreach (var conta in Directory.GetDirectories(ud))
+                {
+                    string f = Path.Combine(conta, @"730\local\cfg\cs2_video.txt");
+                    if (File.Exists(f)) l.Add(f);
+                }
+        }
+        catch { }
+        return l;
+    }
+
+    public static bool Cs2Otimizado()
+    {
+        var l = ArquivosCs2();
+        return l.Count > 0 && l.All(f =>
+        {
+            try
+            {
+                string t = File.ReadAllText(f);
+                return PerfilCs2.All(p => Regex.IsMatch(t, $"\"{Regex.Escape(p.chave)}\"\\s+\"{Regex.Escape(p.valor)}\""));
+            }
+            catch { return false; }
+        });
+    }
+
+    public static string AplicarPerfilCs2()
+    {
+        if (Process.GetProcessesByName("cs2").Length > 0)
+            return "Fecha o CS2 primeiro, senão ele desfaz a mudança quando fechar.";
+        var arquivos = ArquivosCs2();
+        if (arquivos.Count == 0)
+            return "Não achei as configs do CS2. Abre o jogo uma vez, entra nas opções de vídeo, fecha e tenta de novo.";
+
+        foreach (var f in arquivos)
+        {
+            Backup.GuardarArquivo(f);
+            string t = File.ReadAllText(f);
+            foreach (var (chave, valor, _) in PerfilCs2)
+            {
+                var rx = new Regex($"(\"{Regex.Escape(chave)}\"\\s+\")[^\"]*(\")");
+                if (rx.IsMatch(t)) t = rx.Replace(t, m => m.Groups[1].Value + valor + m.Groups[2].Value, 1);
+                else
+                {
+                    int fim = t.LastIndexOf('}');
+                    if (fim > 0) t = t[..fim] + $"\t\"{chave}\"\t\t\"{valor}\"\r\n" + t[fim..];
+                }
+            }
+            var attr = File.GetAttributes(f);
+            if (attr.HasFlag(FileAttributes.ReadOnly)) File.SetAttributes(f, attr & ~FileAttributes.ReadOnly);
+            File.WriteAllText(f, t);
+        }
+        Atualizador.Log($"Perfil CS2 aplicado em {arquivos.Count} conta(s)");
+        return "Config competitiva aplicada no CS2!\n\n" + string.Join("\n", PerfilCs2.Select(p => "•  " + p.oQue)) +
+               "\n\nA resolução eu não mexi. Se ainda faltar FPS, baixar a resolução é o que mais ajuda na GTX 1050 Ti." +
+               "\nPra desfazer: Ferramentas → Desfazer mudanças.";
+    }
+
+    // ---------- Perfil competitivo do Valorant ----------
+    // GameUserSettings.ini de cada conta. Só valores que o próprio menu do jogo grava (sem mexer em arquivo do jogo).
+
+    private static readonly (string secao, string chave, string valor)[] PerfilValorant =
+    {
+        ("ScalabilityGroups", "sg.ShadowQuality", "0"),
+        ("ScalabilityGroups", "sg.PostProcessQuality", "0"),
+        ("ScalabilityGroups", "sg.EffectsQuality", "0"),
+        ("ScalabilityGroups", "sg.FoliageQuality", "0"),
+        ("ScalabilityGroups", "sg.TextureQuality", "0"),
+        ("ScalabilityGroups", "sg.ShadingQuality", "0"),
+        ("ScalabilityGroups", "sg.AntiAliasingQuality", "0"),
+        ("ScalabilityGroups", "sg.ViewDistanceQuality", "0"),
+        ("/Script/ShooterGame.ShooterGameUserSettings", "bUseVSync", "False"),
+        ("/Script/ShooterGame.ShooterGameUserSettings", "bUseDynamicResolution", "False"),
+    };
+
+    public static List<string> ArquivosValorant()
+    {
+        var l = new List<string>();
+        try
+        {
+            string raiz = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"VALORANT\Saved\Config");
+            if (Directory.Exists(raiz))
+                foreach (var conta in Directory.GetDirectories(raiz))
+                {
+                    string f = Path.Combine(conta, @"Windows\GameUserSettings.ini");
+                    if (File.Exists(f)) l.Add(f);
+                }
+        }
+        catch { }
+        return l;
+    }
+
+    public static bool ValorantOtimizado()
+    {
+        var l = ArquivosValorant();
+        return l.Count > 0 && l.All(f =>
+        {
+            try { string t = File.ReadAllText(f); return t.Contains("sg.ShadowQuality=0") && t.Contains("sg.EffectsQuality=0") && t.Contains("sg.ShadingQuality=0"); }
+            catch { return false; }
+        });
+    }
+
+    public static string AplicarPerfilValorant()
+    {
+        if (Process.GetProcessesByName("VALORANT-Win64-Shipping").Length > 0)
+            return "Fecha o Valorant primeiro, senão ele desfaz a mudança quando fechar.";
+        var arquivos = ArquivosValorant();
+        if (arquivos.Count == 0)
+            return "Não achei as configs do Valorant. Abre o jogo uma vez, fecha e tenta de novo.";
+
+        foreach (var f in arquivos)
+        {
+            Backup.GuardarArquivo(f);
+            var ini = new Ini(f);
+            foreach (var (secao, chave, valor) in PerfilValorant) ini.Definir(secao, chave, valor);
+            ini.Salvar();
+        }
+        Atualizador.Log($"Perfil Valorant aplicado em {arquivos.Count} conta(s)");
+        return "Config competitiva aplicada no Valorant!\n\n" +
+               "•  Material, textura, detalhes, sombras e efeitos: Baixo\n•  Anti-serrilhado: nenhum\n•  V-Sync e resolução dinâmica: desligados\n\n" +
+               "FALTA 1 COISA que o Valorant guarda na nuvem (não dá pra ligar por fora):\n" +
+               "Configurações → Vídeo → Qualidade gráfica → Renderização multithread: LIGADA.\n" +
+               "No teu processador de 6 núcleos é a que mais dá FPS.\n\nPra desfazer: Ferramentas → Desfazer mudanças.";
+    }
 }
 
 /// <summary>Editor simples de .ini que preserva o resto do arquivo.</summary>

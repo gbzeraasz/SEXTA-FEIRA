@@ -106,6 +106,26 @@ internal static class Checagens
             }
         });
 
+        // ---------- Monitor ----------
+        foreach (var m in Tela.Ler())
+        {
+            var mon = m;
+            string nome = Tela.Ler().Count > 1 ? (m.Principal ? "Monitor principal" : "Segundo monitor") : "Monitor";
+            l.Add(new Checagem
+            {
+                Nome = $"{nome}: taxa de atualização",
+                Status = m.PodeMelhorar ? Status.Alerta : Status.Ok,
+                Detalhe = m.PodeMelhorar
+                    ? $"Rodando a {m.HzAtual} Hz, mas ele aguenta {m.HzMaximo} Hz! Tu só VÊ {m.HzAtual} quadros por segundo, mesmo com o jogo dando mais."
+                    : $"{m.HzAtual} Hz (o máximo dele em {m.Largura}x{m.Altura})",
+                Botao = m.PodeMelhorar ? $"Usar {m.HzMaximo} Hz" : null,
+                Automatica = m.PodeMelhorar,
+                Acao = () => Tela.UsarMaximo(mon)
+                    ? $"Pronto, {mon.HzMaximo} Hz! Confere também nas opções de vídeo do jogo se ele está em {mon.HzMaximo} Hz."
+                    : "O Windows não aceitou. Pode ser o cabo (HDMI antigo às vezes trava em 60 Hz): usa DisplayPort ou um HDMI 2.0."
+            });
+        }
+
         // ---------- Latência e consistência ----------
         bool acel = Ajustes.AceleracaoMouseLigada();
         l.Add(new Checagem
