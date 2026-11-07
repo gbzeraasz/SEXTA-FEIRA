@@ -2638,9 +2638,9 @@ internal class JanelaPrincipal : Form
 
         // Correção v1.0.15: o mouse deixou de ser marcado por padrão e volta ao normal uma vez
         var cfg = Configuracao.Atual;
-        if (cfg.VersaoIconeRaio < 5)
+        if (cfg.VersaoIconeRaio < 6)
         {
-            cfg.VersaoIconeRaio = 5;
+            cfg.VersaoIconeRaio = 6;
             cfg.Salvar();
             _ = Task.Run(() => Atalho.AtualizarIcone());
         }
