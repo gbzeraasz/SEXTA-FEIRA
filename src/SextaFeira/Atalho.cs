@@ -75,6 +75,44 @@ internal static class Atalho
         return Instalado();
     }
 
+    [System.Runtime.InteropServices.DllImport("shell32.dll")]
+    private static extern void SHChangeNotify(int eventId, int flags, IntPtr item1, IntPtr item2);
+
+    /// <summary>
+    /// Ícone novo: regrava o atalho do menu Iniciar e o que está fixado na barra de tarefas
+    /// e pede pro Windows recarregar os ícones (assim não precisa desafixar e fixar de novo).
+    /// </summary>
+    public static void AtualizarIcone()
+    {
+        try
+        {
+            string raio = Path.Combine(AppContext.BaseDirectory, "raio.ico");
+            if (!File.Exists(raio)) return;
+            Type tipo = Type.GetTypeFromProgID("WScript.Shell")!;
+            dynamic shell = Activator.CreateInstance(tipo)!;
+            var atalhos = new List<string>();
+            if (File.Exists(CaminhoAtalho)) atalhos.Add(CaminhoAtalho);
+            string fixados = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                @"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar");
+            if (Directory.Exists(fixados)) atalhos.AddRange(Directory.GetFiles(fixados, "*.lnk"));
+            foreach (var arq in atalhos)
+            {
+                try
+                {
+                    dynamic lnk = shell.CreateShortcut(arq);
+                    string args = lnk.Arguments ?? "";
+                    if (!args.Contains(NomeTarefa)) continue;
+                    lnk.IconLocation = raio + ",0";
+                    lnk.Save();
+                }
+                catch { }
+            }
+            SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); // SHCNE_ASSOCCHANGED: recarrega ícones
+            Atualizador.Log("Ícone do botão de 1 clique atualizado");
+        }
+        catch { }
+    }
+
     public static void Remover()
     {
         Sistema.Rodar("schtasks", $"/delete /tn \"{NomeTarefa}\" /f");
