@@ -165,7 +165,7 @@ internal class AvisoPopup : Form
             // linhas de varredura bem fracas
             g.SetClip(caminho, CombineMode.Intersect);
             using (var scan = new Pen(Color.FromArgb(10, cor.R, cor.G, cor.B)))
-                for (float y = r.Y + 2; y < r.Bottom; y += 3) g.DrawLine(scan, r.X, y, r.Right, y);
+                for (float ys = r.Y + 2; ys < r.Bottom; ys += 3) g.DrawLine(scan, r.X, ys, r.Right, ys);
             g.ResetClip();
             using (var borda = new Pen(Hud.Alfa(cor, 130), 1.2f)) g.DrawPath(borda, caminho);
         }
