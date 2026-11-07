@@ -277,6 +277,9 @@ internal static class RotaInteligente
     private static bool protegido;
     private static bool fechamosOneDrive;
     private static bool jogoChegouAbrir;
+    private static DateTime sessaoInicio;
+    // launchers que ficaram abertos sem o jogo: passam a valer só quando o JOGO abrir
+    private static readonly HashSet<string> launcherParado = new();
     public static string Status { get; private set; } = "";
 
     private static readonly string[] ServicosRede = { "wuauserv", "BITS", "DoSvc", "UsoSvc" };
@@ -301,9 +304,12 @@ internal static class RotaInteligente
             var cfg = Configuracao.Atual;
             if (sessaoJogo == null)
             {
-                var j = Jogos.FirstOrDefault(x => Aberto(x.Gatilhos));
+                foreach (var id in launcherParado.ToList())
+                    if (!Aberto(Jogos.First(x => x.Id == id).Gatilhos)) launcherParado.Remove(id);
+                var j = Jogos.FirstOrDefault(x => Aberto(launcherParado.Contains(x.Id) ? x.Jogo : x.Gatilhos));
                 if (j == null) return null;
                 sessaoJogo = j.Id;
+                sessaoInicio = DateTime.Now;
                 jogoChegouAbrir = false;
                 var frases = new List<string>();
 
@@ -336,6 +342,13 @@ internal static class RotaInteligente
             {
                 var j = Jogos.First(x => x.Id == sessaoJogo);
                 if (Aberto(j.Jogo)) jogoChegouAbrir = true;
+                // launcher aberto há 10 min sem o jogo: desliga e só volta quando o jogo abrir
+                if (!jogoChegouAbrir && (DateTime.Now - sessaoInicio).TotalMinutes > 10)
+                {
+                    launcherParado.Add(j.Id);
+                    Encerrar();
+                    return null;
+                }
                 // fecha a sessão quando o jogo fecha (ou quando o launcher fecha sem o jogo ter aberto)
                 bool acabou = jogoChegouAbrir ? !Aberto(j.Jogo) : !Aberto(j.Gatilhos);
                 if (!acabou) return null;
