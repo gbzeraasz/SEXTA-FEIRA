@@ -7,6 +7,9 @@ internal static class OtimizacaoRapida
     {
         Atualizador.Log("Botão da barra: otimização iniciada");
 
+        // Versão nova já baixada? Instala antes e roda o botão de novo, já atualizado.
+        if (Atualizador.AplicarPendenteERodar(new[] { Program.ArgOtimizar })) return;
+
         // O aviso aparece na hora e acompanha a otimização ao vivo
         var r = AvisoPopup.OtimizarComProgresso();
         if (r != null) Atualizador.Log("Botão da barra: " + r.Frase());

@@ -87,6 +87,28 @@ internal static class Atualizador
         Log($"Versão {info.TargetFullRelease.Version} baixada");
     }
 
+    /// <summary>
+    /// Botão de 1 clique: se já tem versão nova baixada esperando, instala AGORA e roda o botão de novo
+    /// já na versão nova (assim tu nunca vê o aviso velho). Devolve true se vai reiniciar.
+    /// </summary>
+    public static bool AplicarPendenteERodar(string[] argumentos)
+    {
+        try
+        {
+            var m = Criar();
+            var pendente = m.UpdatePendingRestart;
+            if (pendente == null) return false;
+            Log($"Botão da barra: instalando {pendente.Version} antes de otimizar");
+            m.ApplyUpdatesAndRestart(pendente, argumentos);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log("Não deu pra aplicar a atualização pendente: " + ex.Message);
+            return false;
+        }
+    }
+
     public static void AplicarEReiniciar(UpdateInfo info, bool naBandeja = false)
     {
         Log($"Aplicando {info.TargetFullRelease.Version} e reiniciando" + (naBandeja ? " (na bandeja)" : ""));
