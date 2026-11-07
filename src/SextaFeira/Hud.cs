@@ -791,22 +791,23 @@ internal class BotaoMenuHud : Button
     }
 }
 
-/// <summary>Símbolo da SEXTA-FEIRA no menu: um núcleo pequeno com dois arcos girando devagar.</summary>
+/// <summary>Logo da SEXTA-FEIRA no menu: o emblema holográfico com brilho pulsando e um arco fino girando em volta.</summary>
 internal class LogoNucleo : Control
 {
-    private readonly System.Windows.Forms.Timer anim = new() { Interval = 50 };
-    private float ang;
+    private readonly System.Windows.Forms.Timer anim = new() { Interval = 40 };
+    private float ang, pulso;
 
     public LogoNucleo()
     {
         SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
         BackColor = Color.Transparent;
-        Size = new Size(34, 34);
+        Size = new Size(38, 38);
         anim.Tick += (_, _) =>
         {
             var f = FindForm();
-            if (f == null || f.WindowState == FormWindowState.Minimized) return;
-            ang = (ang + 4) % 360;
+            if (f == null || f.WindowState == FormWindowState.Minimized || !f.Visible) return;
+            ang = (ang + 3) % 360;
+            pulso += 0.08f;
             Invalidate();
         };
         anim.Start();
@@ -816,23 +817,19 @@ internal class LogoNucleo : Control
     {
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        float cx = Width / 2f, cy = Height / 2f, r = Width / 2f - 3;
-
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        float cx = Width / 2f, cy = Height / 2f, r = Width / 2f - 1;
         using (var aura = new GraphicsPath())
         {
             aura.AddEllipse(cx - r, cy - r, r * 2, r * 2);
-            using var br = new PathGradientBrush(aura) { CenterColor = Hud.Alfa(Hud.Ciano, 90), SurroundColors = new[] { Color.Transparent } };
+            using var br = new PathGradientBrush(aura) { CenterColor = Hud.Alfa(Hud.Ciano, (int)(60 + 30 * Math.Sin(pulso))), SurroundColors = new[] { Color.Transparent } };
             g.FillPath(br, aura);
         }
-        using (var p = new Pen(Hud.Alfa(Hud.Ciano, 230), 2.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-        {
-            g.DrawArc(p, cx - r, cy - r, r * 2, r * 2, ang, 110);
-            g.DrawArc(p, cx - r, cy - r, r * 2, r * 2, ang + 180, 110);
-        }
-        float r2 = r - 5;
-        using (var p = new Pen(Hud.Alfa(Hud.CianoClaro, 170), 1.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-            g.DrawArc(p, cx - r2, cy - r2, r2 * 2, r2 * 2, -ang * 1.5f, 200);
-        using (var b = new SolidBrush(Color.White)) g.FillEllipse(b, cx - 2.5f, cy - 2.5f, 5, 5);
+        float lado = Width - 6;
+        g.DrawImage(Tema.Logo, (Width - lado) / 2, (Height - lado) / 2, lado, lado);
+        using var p = new Pen(Hud.Alfa(Hud.CianoClaro, 170), 1.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        g.DrawArc(p, 0.8f, 0.8f, Width - 2.6f, Height - 2.6f, ang, 70);
+        g.DrawArc(p, 0.8f, 0.8f, Width - 2.6f, Height - 2.6f, ang + 180, 70);
     }
 
     protected override void Dispose(bool disposing)

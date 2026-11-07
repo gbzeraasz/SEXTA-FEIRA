@@ -281,7 +281,7 @@ internal class JanelaPrincipal : Form
         lateral.Width = 220;
         lateral.BackColor = Tema.Lateral;
 
-        lateral.Controls.Add(new LogoNucleo { Location = new Point(16, 30) });
+        lateral.Controls.Add(new LogoNucleo { Location = new Point(12, 26) });
         var logo = Tema.Rotulo("SEXTA-FEIRA", new Font(Hud.FonteForte, 15f), Color.White);
         logo.Location = new Point(54, 26);
         lateral.Controls.Add(logo);
@@ -2638,9 +2638,9 @@ internal class JanelaPrincipal : Form
 
         // Correção v1.0.15: o mouse deixou de ser marcado por padrão e volta ao normal uma vez
         var cfg = Configuracao.Atual;
-        if (cfg.VersaoIconeRaio < 3)
+        if (cfg.VersaoIconeRaio < 4)
         {
-            cfg.VersaoIconeRaio = 3;
+            cfg.VersaoIconeRaio = 4;
             cfg.Salvar();
             _ = Task.Run(() => Atalho.AtualizarIcone());
         }

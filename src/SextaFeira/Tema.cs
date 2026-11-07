@@ -26,6 +26,23 @@ internal static class Tema
     public static readonly Font Titulo = new("Segoe UI Semibold", 22f);
     public static readonly Font Mono = new("Segoe UI", 9.5f);
 
+    private static Image logo;
+    /// <summary>Logo da SEXTA-FEIRA em versão holograma (fundo transparente).</summary>
+    public static Image Logo
+    {
+        get
+        {
+            if (logo != null) return logo;
+            try
+            {
+                using var s = typeof(Tema).Assembly.GetManifestResourceStream("SextaFeira.logo_holo.png");
+                logo = s != null ? new Bitmap(Image.FromStream(s)) : Icone.ToBitmap();
+            }
+            catch { logo = Icone.ToBitmap(); }
+            return logo;
+        }
+    }
+
     private static Icon icone;
     public static Icon Icone
     {

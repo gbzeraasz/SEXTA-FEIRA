@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="icone.ico" />
+    <EmbeddedResource Include="logo_holo.png" />
     <Content Include="raio.ico" CopyToOutputDirectory="PreserveNewest" />
     <!-- Medidor de FPS da Intel (MIT), baixado pelo build automático -->
     <Content Include="tools\PresentMon.exe" Condition="Exists('tools\PresentMon.exe')" CopyToOutputDirectory="PreserveNewest" />

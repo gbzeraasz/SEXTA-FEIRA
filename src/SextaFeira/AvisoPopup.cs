@@ -38,13 +38,13 @@ internal class AvisoPopup : Form
     private bool erro, trabalhando, concluido;
     private int progresso = -1;
     private float progressoVisivel, giro, pulso;
-    private int largura = 296, altura = 62;
+    private int largura = 370, altura = 82;
     private Point posFinal;
 
-    private readonly Font fCab = new(Hud.FonteForte, 6.75f);
-    private readonly Font fTitulo = new(Hud.FonteForte, 9.25f);
-    private readonly Font fTexto = new(Hud.FonteTexto, 7.75f);
-    private const int XTexto = 54;
+    private readonly Font fCab = new(Hud.FonteForte, 7.75f);
+    private readonly Font fTitulo = new(Hud.FonteForte, 11.5f);
+    private readonly Font fTexto = new(Hud.FonteTexto, 9.25f);
+    private const int XTexto = 84;
 
     private AvisoPopup(string titulo, string texto, bool erro, bool trabalhando)
     {
@@ -63,8 +63,8 @@ internal class AvisoPopup : Form
     {
         int w = largura - XTexto - 16;
         int hTexto = string.IsNullOrEmpty(texto) ? 0 :
-            Math.Min(28, TextRenderer.MeasureText(texto, fTexto, new Size(w, 0), TextFormatFlags.WordBreak).Height);
-        altura = Math.Max(58, 38 + hTexto + (progresso >= 0 ? 12 : 6));
+            Math.Min(36, TextRenderer.MeasureText(texto, fTexto, new Size(w, 0), TextFormatFlags.WordBreak).Height);
+        altura = Math.Max(80, 50 + hTexto + (progresso >= 0 ? 14 : 10));
         var area = Screen.PrimaryScreen!.WorkingArea;
         posFinal = new Point(area.Right - largura - 12, area.Top + 12);
         Bounds = new Rectangle(posFinal, new Size(largura, altura));
@@ -143,9 +143,9 @@ internal class AvisoPopup : Form
         // vidro quase transparente, mais forte na esquerda
         using (var caminho = Hud.Redondo(r, 10))
         {
-            using (var fundo = new LinearGradientBrush(r, Color.FromArgb(150, 4, 18, 30), Color.FromArgb(70, 4, 18, 30), 0f))
+            using (var fundo = new LinearGradientBrush(r, Color.FromArgb(215, 4, 16, 28), Color.FromArgb(150, 4, 16, 28), 0f))
                 g.FillPath(fundo, caminho);
-            using (var borda = new Pen(Hud.Alfa(cor, 70), 1f)) g.DrawPath(borda, caminho);
+            using (var borda = new Pen(Hud.Alfa(cor, 110), 1.2f)) g.DrawPath(borda, caminho);
         }
         // linhas de varredura bem fracas
         using (var scan = new Pen(Color.FromArgb(12, cor.R, cor.G, cor.B)))
@@ -165,59 +165,58 @@ internal class AvisoPopup : Form
             g.FillRectangle(reflexo, 20, 0.5f, largura - 40, 1f);
 
         // núcleo
-        float cx = 28, cy = Math.Min(altura / 2f, 31), raio = 14;
+        float cx = 42, cy = Math.Min(altura / 2f, 41), raio = 27;
         using (var aura = new GraphicsPath())
         {
             aura.AddEllipse(cx - raio - 7, cy - raio - 7, (raio + 7) * 2, (raio + 7) * 2);
             using var br = new PathGradientBrush(aura) { CenterColor = Hud.Alfa(cor, (int)(70 + 30 * Math.Sin(pulso))), SurroundColors = new[] { Color.Transparent } };
             g.FillPath(br, aura);
         }
-        using (var trilho = new Pen(Hud.Alfa(cor, 45), 1.2f)) g.DrawEllipse(trilho, cx - raio, cy - raio, raio * 2, raio * 2);
+        // logo holográfico no centro, com arcos girando em volta enquanto trabalha
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        float lado = raio * 2 - 6;
+        g.DrawImage(Tema.Logo, cx - lado / 2, cy - lado / 2, lado, lado);
+        using (var trilho = new Pen(Hud.Alfa(cor, 50), 1.2f)) g.DrawEllipse(trilho, cx - raio, cy - raio, raio * 2, raio * 2);
         using (var arco = new Pen(Hud.Alfa(cor, 240), 2.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
         {
-            if (concluido) g.DrawEllipse(arco, cx - raio, cy - raio, raio * 2, raio * 2);
-            else for (int k = 0; k < 3; k++) g.DrawArc(arco, cx - raio, cy - raio, raio * 2, raio * 2, giro + k * 120, 70);
+            if (concluido || erro) g.DrawEllipse(arco, cx - raio, cy - raio, raio * 2, raio * 2);
+            else for (int k = 0; k < 3; k++) g.DrawArc(arco, cx - raio, cy - raio, raio * 2, raio * 2, giro + k * 120, 60);
         }
-        float r2 = raio - 4.5f;
-        using (var interno = new Pen(Hud.Alfa(Color.FromArgb(160, 240, 255), 150), 1f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-            g.DrawArc(interno, cx - r2, cy - r2, r2 * 2, r2 * 2, -giro * 1.5f, 230);
-        using (var traco = new Pen(Color.FromArgb(240, 250, 255), 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
-        using (var simbolo = new SolidBrush(Color.FromArgb(245, 252, 255)))
+        // selinho de status: ✓ pronto / ! erro
+        if (concluido || erro)
         {
-            if (erro) { g.DrawLine(traco, cx, cy - 6, cx, cy + 1); g.FillEllipse(simbolo, cx - 1.4f, cy + 4, 2.8f, 2.8f); }
-            else if (concluido) g.DrawLines(traco, new[] { new PointF(cx - 5, cy), new PointF(cx - 1.5f, cy + 3.5f), new PointF(cx + 6, cy - 4.5f) });
-            else g.FillPolygon(simbolo, new[]
-            {
-                new PointF(cx + 1.2f, cy - 6.5f), new PointF(cx - 3.6f, cy + 0.8f), new PointF(cx - 0.6f, cy + 0.8f),
-                new PointF(cx - 1.8f, cy + 6.5f), new PointF(cx + 3.6f, cy - 1.2f), new PointF(cx + 0.6f, cy - 1.2f)
-            });
+            float sx = cx + raio * 0.72f, sy = cy + raio * 0.72f, sr = 8;
+            using (var b = new SolidBrush(cor)) g.FillEllipse(b, sx - sr, sy - sr, sr * 2, sr * 2);
+            using var traco = new Pen(Color.FromArgb(6, 14, 24), 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+            if (erro) { g.DrawLine(traco, sx, sy - 4, sx, sy + 1); g.DrawLine(traco, sx, sy + 3.5f, sx, sy + 3.8f); }
+            else g.DrawLines(traco, new[] { new PointF(sx - 4, sy), new PointF(sx - 1, sy + 3), new PointF(sx + 4, sy - 3) });
         }
 
         // textos (com um brilho leve atrás do título)
-        using (var b = new SolidBrush(Hud.Alfa(cor, 210))) g.DrawString(cabecalho, fCab, b, XTexto - 1, 7);
+        using (var b = new SolidBrush(Hud.Alfa(cor, 210))) g.DrawString(cabecalho, fCab, b, XTexto - 1, 10);
         int w = largura - XTexto - 14;
-        using (var brilho = new SolidBrush(Hud.Alfa(cor, 45)))
-        using (var branco = new SolidBrush(Color.FromArgb(240, 235, 250, 255)))
+        using (var brilho = new SolidBrush(Hud.Alfa(cor, 70)))
+        using (var branco = new SolidBrush(Color.FromArgb(255, 240, 252, 255)))
         using (var fmt = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
         {
-            var rt = new RectangleF(XTexto - 1, 18, w, 18);
+            var rt = new RectangleF(XTexto - 1, 24, w, 24);
             g.DrawString(titulo, fTitulo, brilho, new RectangleF(rt.X + 0.8f, rt.Y + 0.8f, rt.Width, rt.Height), fmt);
             g.DrawString(titulo, fTitulo, branco, rt, fmt);
         }
         if (!string.IsNullOrEmpty(texto))
-            using (var cinza = new SolidBrush(Color.FromArgb(200, 165, 205, 225)))
+            using (var cinza = new SolidBrush(Color.FromArgb(235, 185, 220, 238)))
             using (var fmt = new StringFormat { Trimming = StringTrimming.EllipsisWord })
-                g.DrawString(texto, fTexto, cinza, new RectangleF(XTexto - 1, 35, w, 28), fmt);
+                g.DrawString(texto, fTexto, cinza, new RectangleF(XTexto - 1, 47, w, 36), fmt);
 
         // progresso: linha fina com cabeça brilhante
         if (progresso >= 0)
         {
-            float y = altura - 7, x0 = XTexto, wl = largura - XTexto - 42;
+            float y = altura - 9, x0 = XTexto, wl = largura - XTexto - 50;
             using (var trilho = new Pen(Color.FromArgb(35, cor.R, cor.G, cor.B), 1.5f)) g.DrawLine(trilho, x0, y, x0 + wl, y);
             float wp = wl * Math.Clamp(progressoVisivel, 0, 100) / 100f;
             using (var cheio = new Pen(Hud.Alfa(cor, 230), 1.6f)) g.DrawLine(cheio, x0, y, x0 + wp, y);
             using (var cabeca = new SolidBrush(Hud.Alfa(cor, 120))) g.FillEllipse(cabeca, x0 + wp - 4, y - 4, 8, 8);
-            using (var b = new SolidBrush(Hud.Alfa(cor, 230))) g.DrawString($"{(int)Math.Round(progressoVisivel)}%", fCab, b, largura - 36, y - 6);
+            using (var b = new SolidBrush(Hud.Alfa(cor, 230))) g.DrawString($"{(int)Math.Round(progressoVisivel)}%", fCab, b, largura - 42, y - 7);
         }
     }
 
