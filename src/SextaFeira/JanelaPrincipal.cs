@@ -2588,6 +2588,12 @@ internal class JanelaPrincipal : Form
 
         // Correção v1.0.15: o mouse deixou de ser marcado por padrão e volta ao normal uma vez
         var cfg = Configuracao.Atual;
+        if (!cfg.TelaCorrigida)
+        {
+            cfg.TelaCorrigida = true;
+            cfg.Salvar();
+            _ = Task.Run(() => { Otimizador.ManterTelaLigada(); Atualizador.Log("Tela: desligamento automático na tomada desativado (v1.0.27)"); });
+        }
         if (!cfg.MouseCorrigido)
         {
             cfg.MouseCorrigido = true;

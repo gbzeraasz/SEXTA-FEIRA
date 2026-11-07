@@ -174,17 +174,27 @@ internal static class Otimizador
     public static bool AtivarAltoDesempenho()
     {
         string atual = PlanoAtivo();
-        if (atual == PlanoAltoDesempenho) return true;
+        if (atual == PlanoAltoDesempenho) { ManterTelaLigada(); return true; }
         if (atual != null) Backup.GuardarPlano(atual);
 
         Sistema.Rodar("powercfg", "/setactive " + PlanoAltoDesempenho);
-        if (PlanoAtivo() == PlanoAltoDesempenho) return true;
+        if (PlanoAtivo() == PlanoAltoDesempenho) { ManterTelaLigada(); return true; }
 
         // Em alguns PCs o plano vem escondido: cria uma cópia dele
         var m = Regex.Match(Sistema.Rodar("powercfg", "-duplicatescheme " + PlanoAltoDesempenho), "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
         if (!m.Success) return false;
         Sistema.Rodar("powercfg", "/setactive " + m.Value);
+        ManterTelaLigada();
         return true;
+    }
+
+    /// <summary>
+    /// O plano Alto desempenho vem com "desligar a tela após 15 min". Na tomada, a tela nunca desliga sozinha.
+    /// (Não mexe na suspensão nem na bateria de notebook.)
+    /// </summary>
+    public static void ManterTelaLigada()
+    {
+        try { Sistema.Rodar("powercfg", "/change monitor-timeout-ac 0", 15000); } catch { }
     }
 
     // ---------------- RAM ----------------

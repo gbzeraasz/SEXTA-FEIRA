@@ -20,6 +20,9 @@ internal class Configuracao
     /// <summary>Jogos que o usuário mandou usar sempre a rota direta.</summary>
     public List<string> SempreDireta { get; set; } = new();
 
+    /// <summary>Marca que a correção da tela desligando sozinha (v1.0.27) já rodou.</summary>
+    public bool TelaCorrigida { get; set; }
+
     /// <summary>Marca que a correção do mouse (v1.0.15) já rodou.</summary>
     public bool MouseCorrigido { get; set; }
 
