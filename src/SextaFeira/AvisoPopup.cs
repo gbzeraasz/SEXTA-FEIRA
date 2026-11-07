@@ -153,9 +153,9 @@ internal class AvisoPopup : Form
         // cantoneiras
         using (var canto = new Pen(Hud.Alfa(cor, 220), 1.6f))
         {
-            float c = 10, w = largura - 1.5f, h = altura - 1.5f;
+            float c = 10, wc = largura - 1.5f, h = altura - 1.5f;
             g.DrawLine(canto, 1, c + 4, 1, 4); g.DrawLine(canto, 4, 1, c + 4, 1);
-            g.DrawLine(canto, w, h - c - 4, w, h - 4); g.DrawLine(canto, w - 4, h, w - c - 4, h);
+            g.DrawLine(canto, wc, h - c - 4, wc, h - 4); g.DrawLine(canto, wc - 4, h, wc - c - 4, h);
         }
         // reflexo no topo
         using (var reflexo = new LinearGradientBrush(new RectangleF(20, 0, largura - 40, 1), Color.Transparent, Color.Transparent, 0f)
