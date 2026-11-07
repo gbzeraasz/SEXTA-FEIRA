@@ -11,6 +11,15 @@ internal class Configuracao
     /// <summary>Modo Competitivo: limpa a RAM em espera sozinho durante a partida quando a RAM livre fica baixa.</summary>
     public bool RamContinua { get; set; } = true;
 
+    /// <summary>Rota inteligente: liga sozinha a melhor rota quando o jogo abre.</summary>
+    public bool RotaAutomatica { get; set; } = true;
+    /// <summary>Pausa o que usa internet escondido enquanto tem jogo aberto.</summary>
+    public bool ProtegerRedeNoJogo { get; set; } = true;
+    /// <summary>Melhor rota de cada jogo (id do jogo → "direta", "warp-wireguard" ou "warp-masque").</summary>
+    public Dictionary<string, string> Rotas { get; set; } = new();
+    /// <summary>Jogos que o usuário mandou usar sempre a rota direta.</summary>
+    public List<string> SempreDireta { get; set; } = new();
+
     /// <summary>Marca que a correção do mouse (v1.0.15) já rodou.</summary>
     public bool MouseCorrigido { get; set; }
 

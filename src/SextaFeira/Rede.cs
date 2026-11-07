@@ -108,7 +108,7 @@ internal static class Rede
         return l;
     }
 
-    private static async Task<float> Medir(Alvo a, Ping ping)
+    internal static async Task<float> Medir(Alvo a, Ping ping)
     {
         try
         {

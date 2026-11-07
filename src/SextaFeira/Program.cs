@@ -15,6 +15,13 @@ internal static class Program
 
         bool modoRapido = args.Any(a => a.Equals(ArgOtimizar, StringComparison.OrdinalIgnoreCase));
 
+        // Já tem uma SEXTA-FEIRA aberta (ou na bandeja)? Só pede pra ela aparecer.
+        if (!modoRapido && JanelaJaAberta())
+        {
+            try { File.WriteAllText(ArquivoAbrir, DateTime.Now.ToString("o")); } catch { }
+            return;
+        }
+
         // Quase tudo que o app faz precisa de administrador.
         if (!Sistema.EhAdmin())
         {
@@ -33,7 +40,30 @@ internal static class Program
             return;
         }
 
+        using var mutex = new Mutex(true, NomeMutex, out bool primeira);
+        if (!primeira)
+        {
+            try { File.WriteAllText(ArquivoAbrir, DateTime.Now.ToString("o")); } catch { }
+            return;
+        }
         Application.Run(new JanelaPrincipal());
+        GC.KeepAlive(mutex);
+    }
+
+    private const string NomeMutex = @"Local\SEXTA-FEIRA-janela";
+
+    /// <summary>Arquivo que uma 2ª abertura cria pra avisar a janela que já está rodando.</summary>
+    public static string ArquivoAbrir => Path.Combine(Sistema.PastaDados, "abrir.sinal");
+
+    private static bool JanelaJaAberta()
+    {
+        try
+        {
+            if (Mutex.TryOpenExisting(NomeMutex, out var m)) { m.Dispose(); return true; }
+            return false;
+        }
+        catch (UnauthorizedAccessException) { return true; } // existe, mas foi criado como administrador
+        catch { return false; }
     }
 
     private static bool ReabrirComoAdmin(string[] args)

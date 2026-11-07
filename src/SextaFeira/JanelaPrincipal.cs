@@ -118,7 +118,50 @@ internal class JanelaPrincipal : Form
             timerFala.Start();
             await Carregar();
         };
-        FormClosing += (_, _) => { timerFala.Stop(); timer.Stop(); timerAtualizacao.Stop(); timerSaude.Stop(); Saude.Salvar(); timerComp.Stop(); ModoCompetitivo.Desligar(); };
+        // ----- Bandeja: fechar a janela não desliga a proteção de rede durante o jogo -----
+        var menuBandeja = new ContextMenuStrip();
+        menuBandeja.Items.Add("Abrir a SEXTA-FEIRA", null, (_, _) => AbrirDaBandeja());
+        menuBandeja.Items.Add("Sair de vez", null, (_, _) => { sairDeVerdade = true; Close(); });
+        bandeja = new NotifyIcon { Icon = Tema.Icone, Text = "SEXTA-FEIRA · protegendo tua internet", ContextMenuStrip = menuBandeja };
+        bandeja.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) AbrirDaBandeja(); };
+
+        FormClosing += (_, e) =>
+        {
+            var cfg = Configuracao.Atual;
+            bool ficarNaBandeja = !sairDeVerdade && e.CloseReason == CloseReason.UserClosing && (cfg.RotaAutomatica || cfg.ProtegerRedeNoJogo);
+            if (ficarNaBandeja)
+            {
+                e.Cancel = true;
+                Hide();
+                timer.Stop();
+                timerFala.Stop();
+                bandeja.Visible = true;
+                if (!avisouBandeja)
+                {
+                    avisouBandeja = true;
+                    AvisoPopup.MostrarSemEsperar("Continuo aqui na bandeja",
+                        "Quando tu abrir um jogo, ligo a melhor rota e protejo a internet. Pra sair de vez: botão direito no ícone perto do relógio.");
+                }
+                return;
+            }
+            bandeja.Visible = false;
+            timerVigia.Stop(); timerFala.Stop(); timer.Stop(); timerAtualizacao.Stop(); timerSaude.Stop(); Saude.Salvar(); timerComp.Stop();
+            ModoCompetitivo.Desligar();
+            RotaInteligente.Encerrar();
+        };
+    }
+
+    private NotifyIcon bandeja;
+    private bool sairDeVerdade, avisouBandeja;
+
+    private void AbrirDaBandeja()
+    {
+        Show();
+        if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        Activate();
+        bandeja.Visible = false;
+        timer.Start();
+        timerFala.Start();
     }
 
     private void MostrarBoot()
@@ -1880,7 +1923,113 @@ internal class JanelaPrincipal : Form
     //  Página: Internet
     // =====================================================================
 
-    private Button btnDiagnostico, btnBufferbloat, btnAjustesRede;
+    private Button btnDiagnostico, btnBufferbloat, btnAjustesRede, btnTestarRotas, btnInstalarWarp;
+    private readonly Label lblRotaInfo = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+    private readonly Label lblRotaProgresso = Tema.Rotulo("", Tema.Pequena, Hud.CianoClaro);
+    private readonly List<(Label nome, Label det)> linhasRota = new();
+    private readonly System.Windows.Forms.Timer timerVigia = new() { Interval = 3000 };
+    private bool vigiando;
+
+    private static CheckBox CaixaHud(string texto, bool marcado) => new()
+    {
+        Text = texto, Checked = marcado, AutoSize = true, Font = Tema.Pequena, ForeColor = Tema.Texto,
+        BackColor = Color.Transparent, FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
+    };
+
+    /// <summary>Mostra o estado do WARP e a rota salva de cada jogo.</summary>
+    private void MostrarRotas(List<RotaInteligente.Resultado> resultados = null)
+    {
+        bool warp = RotaInteligente.WarpInstalado;
+        btnInstalarWarp.Visible = !warp;
+        lblRotaInfo.Text = (warp
+            ? "✅ Cloudflare WARP instalado. A SEXTA-FEIRA compara a rota da tua operadora com 2 rotas da Cloudflare até os servidores de São Paulo e escolhe a mais ESTÁVEL de cada jogo."
+            : "Sem o WARP, o teste mede só a rota da tua operadora. Instala o Cloudflare WARP (oficial e grátis) pra ter 2 rotas alternativas, igual o ExitLag faz com os servidores dele.")
+            + " A rota liga quando o jogo (ou o launcher) abre e nunca troca no meio da partida. Sem risco de ban: não mexe no jogo e não troca de região.";
+        var cfg = Configuracao.Atual;
+        for (int i = 0; i < RotaInteligente.Jogos.Count && i < linhasRota.Count; i++)
+        {
+            var j = RotaInteligente.Jogos[i];
+            var (nome, det) = linhasRota[i];
+            var r = resultados?.FirstOrDefault(x => x.Jogo.Id == j.Id);
+            string rota = cfg.Rotas.GetValueOrDefault(j.Id);
+            nome.Text = rota == null ? $"{j.Nome}  ·  ainda não testado" : $"{j.Nome}  →  {RotaInteligente.NomeRota[rota]}";
+            nome.ForeColor = rota == null ? Tema.Apagado : rota == "direta" ? Tema.Texto : Tema.Verde;
+            det.Text = r == null ? (rota == null ? "Clica em Testar rotas." : "Rota salva do último teste.")
+                : string.Join("   |   ", r.Medicoes.Select(m => $"{RotaInteligente.NomeRota[m.Rota]}: {m.Texto()}")) + "\n" + r.Motivo;
+        }
+    }
+
+    private async Task InstalarWarp()
+    {
+        if (MessageBox.Show("Vou instalar o Cloudflare WARP oficial (grátis) pelo instalador do próprio Windows (winget).\n\n" +
+                            "Leva 1 a 3 minutos. Depois disso a SEXTA-FEIRA usa ele como rota alternativa só quando for melhor.\n\nInstalar?",
+                "SEXTA-FEIRA", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        btnInstalarWarp.Enabled = false;
+        btnInstalarWarp.Text = "Instalando...";
+        bool ok = await Task.Run(() => RotaInteligente.InstalarWarp());
+        btnInstalarWarp.Text = "Instalar Cloudflare WARP (grátis)";
+        btnInstalarWarp.Enabled = true;
+        if (!ok)
+        {
+            MessageBox.Show("Não consegui instalar sozinho. Vou abrir o site oficial: baixa, instala e depois volta aqui e clica em Testar rotas.", "SEXTA-FEIRA");
+            Sistema.Abrir("https://one.one.one.one/");
+        }
+        MostrarRotas();
+    }
+
+    private async Task TestarRotas()
+    {
+        if (testandoRede) return;
+        if (RotaInteligente.EmSessao || Jogos.JogoAberto() != null)
+        {
+            MessageBox.Show("Fecha o jogo antes de testar: o teste troca de rota algumas vezes e isso derrubaria a tua partida.", "SEXTA-FEIRA");
+            return;
+        }
+        testandoRede = true;
+        btnTestarRotas.Enabled = btnDiagnostico.Enabled = btnBufferbloat.Enabled = false;
+        consoleIa.Dizer("Testando as rotas até os servidores de São Paulo...", true);
+        try
+        {
+            var res = await RotaInteligente.Testar((txt, pct) =>
+                BeginInvoke(new Action(() => lblRotaProgresso.Text = $"{pct}%  {txt}")));
+            lblRotaProgresso.Text = "✅ Teste concluído. A melhor rota de cada jogo foi salva.";
+            MostrarRotas(res);
+            consoleIa.Dizer("Rotas testadas. " + string.Join(", ", res.Select(r => $"{r.Jogo.Nome}: {RotaInteligente.NomeRota[r.Escolhida]}")) + ".", true);
+        }
+        catch (Exception ex)
+        {
+            lblRotaProgresso.Text = "Erro no teste: " + ex.Message;
+            Atualizador.Log("ERRO teste de rotas: " + ex);
+        }
+        finally
+        {
+            testandoRede = false;
+            btnTestarRotas.Enabled = btnDiagnostico.Enabled = btnBufferbloat.Enabled = true;
+        }
+    }
+
+    /// <summary>A cada 3 s: vê se algum jogo abriu/fechou e liga/desliga a rota e a proteção.</summary>
+    private async Task Vigiar()
+    {
+        // outra abertura do app pediu pra janela aparecer
+        try
+        {
+            if (File.Exists(Program.ArquivoAbrir)) { File.Delete(Program.ArquivoAbrir); AbrirDaBandeja(); }
+        }
+        catch { }
+        if (vigiando || testandoRede) return;
+        vigiando = true;
+        try
+        {
+            string frase = await Task.Run(() => RotaInteligente.Vigiar());
+            if (frase != null)
+            {
+                consoleIa.Dizer(frase, true);
+                if (RotaInteligente.EmSessao) AvisoPopup.MostrarSemEsperar("SEXTA-FEIRA · partida", frase);
+            }
+        }
+        finally { vigiando = false; }
+    }
     private readonly Label lblDiagStatus = Tema.Rotulo("Ainda não testado.", Tema.Pequena, Tema.Apagado);
     private readonly Panel areaAlvos = new();
     private readonly Label lblVeredito = Tema.Rotulo("", Tema.Negrito, Tema.Texto);
@@ -1893,10 +2042,47 @@ internal class JanelaPrincipal : Form
 
     private Panel MontarInternet()
     {
-        var p = NovaPagina("Internet", "Descobre de onde vêm os picos de ping e aplica os ajustes de rede que funcionam de verdade.");
+        var p = NovaPagina("Internet", "Rota inteligente pros teus jogos, proteção da internet durante a partida e diagnóstico de picos.");
+
+        // ---------- Rota inteligente ----------
+        var rota = Card(30, 100, 900, 300, "Rota inteligente  ·  estilo ExitLag, grátis");
+        lblRotaInfo.Location = new Point(18, 44);
+        lblRotaInfo.MaximumSize = new Size(860, 0);
+        rota.Controls.Add(lblRotaInfo);
+        btnTestarRotas = Tema.Botao("▶ Testar rotas (~1:30)", Tema.Destaque, 210, 36);
+        btnTestarRotas.Location = new Point(18, 90);
+        btnTestarRotas.Click += async (_, _) => await TestarRotas();
+        rota.Controls.Add(btnTestarRotas);
+        btnInstalarWarp = Tema.Botao("Instalar Cloudflare WARP (grátis)", Tema.CardClaro, 260, 36);
+        btnInstalarWarp.Location = new Point(240, 90);
+        btnInstalarWarp.Click += async (_, _) => await InstalarWarp();
+        rota.Controls.Add(btnInstalarWarp);
+        lblRotaProgresso.Location = new Point(514, 100);
+        lblRotaProgresso.MaximumSize = new Size(370, 0);
+        rota.Controls.Add(lblRotaProgresso);
+        for (int i = 0; i < RotaInteligente.Jogos.Count; i++)
+        {
+            var nome = Tema.Rotulo("", Tema.Negrito, Tema.Texto);
+            nome.Location = new Point(18, 140 + i * 38);
+            rota.Controls.Add(nome);
+            var det = Tema.Rotulo("", Tema.Pequena, Tema.Apagado);
+            det.Location = new Point(18, 160 + i * 38);
+            det.MaximumSize = new Size(860, 0);
+            rota.Controls.Add(det);
+            linhasRota.Add((nome, det));
+        }
+        var chkAuto = CaixaHud("Ligar a melhor rota sozinho quando o jogo abrir", Configuracao.Atual.RotaAutomatica);
+        chkAuto.Location = new Point(18, 260);
+        chkAuto.CheckedChanged += (_, _) => { Configuracao.Atual.RotaAutomatica = chkAuto.Checked; Configuracao.Atual.Salvar(); };
+        rota.Controls.Add(chkAuto);
+        var chkProteger = CaixaHud("Proteger a internet durante o jogo (pausa Update e OneDrive)", Configuracao.Atual.ProtegerRedeNoJogo);
+        chkProteger.Location = new Point(440, 260);
+        chkProteger.CheckedChanged += (_, _) => { Configuracao.Atual.ProtegerRedeNoJogo = chkProteger.Checked; Configuracao.Atual.Salvar(); };
+        rota.Controls.Add(chkProteger);
+        p.Controls.Add(rota);
 
         // ---------- Diagnóstico ----------
-        var diag = Card(30, 100, 900, 360, "Diagnóstico de picos (60 segundos)");
+        var diag = Card(30, 416, 900, 360, "Diagnóstico de picos (60 segundos)");
         btnDiagnostico = Tema.Botao("▶ Diagnosticar", Tema.Destaque, 170, 36);
         btnDiagnostico.Location = new Point(18, 38);
         btnDiagnostico.Click += async (_, _) => await RodarDiagnostico();
@@ -1918,7 +2104,7 @@ internal class JanelaPrincipal : Form
         p.Controls.Add(diag);
 
         // ---------- Bufferbloat ----------
-        var bb = Card(30, 474, 440, 266, "Bufferbloat (~40 segundos)");
+        var bb = Card(30, 790, 440, 266, "Bufferbloat (~40 segundos)");
         btnBufferbloat = Tema.Botao("▶ Testar", Tema.CardClaro, 120, 34);
         btnBufferbloat.Location = new Point(18, 38);
         btnBufferbloat.Click += async (_, _) => await RodarBufferbloat();
@@ -1931,7 +2117,7 @@ internal class JanelaPrincipal : Form
         p.Controls.Add(bb);
 
         // ---------- Ajustes ----------
-        var aj = Card(490, 474, 440, 266, "Ajustes de rede");
+        var aj = Card(490, 790, 440, 266, "Ajustes de rede");
         lblRedeInfo.Location = new Point(18, 38);
         lblRedeInfo.MaximumSize = new Size(404, 0);
         aj.Controls.Add(lblRedeInfo);
@@ -2426,6 +2612,9 @@ internal class JanelaPrincipal : Form
         PreencherLimpeza();
         _ = CalcularTamanhos();
         _ = AtualizarInfoRede();
+        MostrarRotas();
+        timerVigia.Tick += async (_, _) => await Vigiar();
+        timerVigia.Start();
         timerSaude.Tick += async (_, _) => await AtualizarSaude();
         timerSaude.Start();
 
