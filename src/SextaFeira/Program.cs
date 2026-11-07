@@ -6,6 +6,7 @@ namespace SextaFeira;
 internal static class Program
 {
     public const string ArgOtimizar = "--otimizar";
+    public const string ArgBandeja = "--bandeja";
 
     [STAThread]
     private static void Main(string[] args)
@@ -46,7 +47,8 @@ internal static class Program
             try { File.WriteAllText(ArquivoAbrir, DateTime.Now.ToString("o")); } catch { }
             return;
         }
-        Application.Run(new JanelaPrincipal());
+        bool naBandeja = args.Any(a => a.Equals(ArgBandeja, StringComparison.OrdinalIgnoreCase));
+        Application.Run(new JanelaPrincipal(naBandeja));
         GC.KeepAlive(mutex);
     }
 

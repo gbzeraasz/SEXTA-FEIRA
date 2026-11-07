@@ -38,13 +38,13 @@ internal class AvisoPopup : Form
     private bool erro, trabalhando, concluido;
     private int progresso = -1;
     private float progressoVisivel, giro, pulso;
-    private int largura = 330, altura = 74;
+    private int largura = 296, altura = 62;
     private Point posFinal;
 
-    private readonly Font fCab = new(Hud.FonteForte, 7.5f);
-    private readonly Font fTitulo = new(Hud.FonteForte, 10.5f);
-    private readonly Font fTexto = new(Hud.FonteTexto, 8.5f);
-    private const int XTexto = 66;
+    private readonly Font fCab = new(Hud.FonteForte, 6.75f);
+    private readonly Font fTitulo = new(Hud.FonteForte, 9.25f);
+    private readonly Font fTexto = new(Hud.FonteTexto, 7.75f);
+    private const int XTexto = 54;
 
     private AvisoPopup(string titulo, string texto, bool erro, bool trabalhando)
     {
@@ -63,10 +63,10 @@ internal class AvisoPopup : Form
     {
         int w = largura - XTexto - 16;
         int hTexto = string.IsNullOrEmpty(texto) ? 0 :
-            Math.Min(34, TextRenderer.MeasureText(texto, fTexto, new Size(w, 0), TextFormatFlags.WordBreak).Height);
-        altura = Math.Max(70, 46 + hTexto + (progresso >= 0 ? 12 : 4));
+            Math.Min(28, TextRenderer.MeasureText(texto, fTexto, new Size(w, 0), TextFormatFlags.WordBreak).Height);
+        altura = Math.Max(58, 38 + hTexto + (progresso >= 0 ? 12 : 6));
         var area = Screen.PrimaryScreen!.WorkingArea;
-        posFinal = new Point(area.Right - largura - 14, area.Top + 14);
+        posFinal = new Point(area.Right - largura - 12, area.Top + 12);
         Bounds = new Rectangle(posFinal, new Size(largura, altura));
     }
 
@@ -165,10 +165,10 @@ internal class AvisoPopup : Form
             g.FillRectangle(reflexo, 20, 0.5f, largura - 40, 1f);
 
         // núcleo
-        float cx = 34, cy = Math.Min(altura / 2f, 38), raio = 19;
+        float cx = 28, cy = Math.Min(altura / 2f, 31), raio = 14;
         using (var aura = new GraphicsPath())
         {
-            aura.AddEllipse(cx - raio - 10, cy - raio - 10, (raio + 10) * 2, (raio + 10) * 2);
+            aura.AddEllipse(cx - raio - 7, cy - raio - 7, (raio + 7) * 2, (raio + 7) * 2);
             using var br = new PathGradientBrush(aura) { CenterColor = Hud.Alfa(cor, (int)(70 + 30 * Math.Sin(pulso))), SurroundColors = new[] { Color.Transparent } };
             g.FillPath(br, aura);
         }
@@ -178,7 +178,7 @@ internal class AvisoPopup : Form
             if (concluido) g.DrawEllipse(arco, cx - raio, cy - raio, raio * 2, raio * 2);
             else for (int k = 0; k < 3; k++) g.DrawArc(arco, cx - raio, cy - raio, raio * 2, raio * 2, giro + k * 120, 70);
         }
-        float r2 = raio - 6;
+        float r2 = raio - 4.5f;
         using (var interno = new Pen(Hud.Alfa(Color.FromArgb(160, 240, 255), 150), 1f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
             g.DrawArc(interno, cx - r2, cy - r2, r2 * 2, r2 * 2, -giro * 1.5f, 230);
         using (var traco = new Pen(Color.FromArgb(240, 250, 255), 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
@@ -188,36 +188,36 @@ internal class AvisoPopup : Form
             else if (concluido) g.DrawLines(traco, new[] { new PointF(cx - 5, cy), new PointF(cx - 1.5f, cy + 3.5f), new PointF(cx + 6, cy - 4.5f) });
             else g.FillPolygon(simbolo, new[]
             {
-                new PointF(cx + 1.5f, cy - 8), new PointF(cx - 4.5f, cy + 1), new PointF(cx - 0.8f, cy + 1),
-                new PointF(cx - 2.2f, cy + 8), new PointF(cx + 4.5f, cy - 1.5f), new PointF(cx + 0.8f, cy - 1.5f)
+                new PointF(cx + 1.2f, cy - 6.5f), new PointF(cx - 3.6f, cy + 0.8f), new PointF(cx - 0.6f, cy + 0.8f),
+                new PointF(cx - 1.8f, cy + 6.5f), new PointF(cx + 3.6f, cy - 1.2f), new PointF(cx + 0.6f, cy - 1.2f)
             });
         }
 
         // textos (com um brilho leve atrás do título)
-        using (var b = new SolidBrush(Hud.Alfa(cor, 210))) g.DrawString(cabecalho, fCab, b, XTexto - 1, 9);
+        using (var b = new SolidBrush(Hud.Alfa(cor, 210))) g.DrawString(cabecalho, fCab, b, XTexto - 1, 7);
         int w = largura - XTexto - 14;
         using (var brilho = new SolidBrush(Hud.Alfa(cor, 45)))
         using (var branco = new SolidBrush(Color.FromArgb(240, 235, 250, 255)))
         using (var fmt = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
         {
-            var rt = new RectangleF(XTexto - 1, 23, w, 20);
+            var rt = new RectangleF(XTexto - 1, 18, w, 18);
             g.DrawString(titulo, fTitulo, brilho, new RectangleF(rt.X + 0.8f, rt.Y + 0.8f, rt.Width, rt.Height), fmt);
             g.DrawString(titulo, fTitulo, branco, rt, fmt);
         }
         if (!string.IsNullOrEmpty(texto))
             using (var cinza = new SolidBrush(Color.FromArgb(200, 165, 205, 225)))
             using (var fmt = new StringFormat { Trimming = StringTrimming.EllipsisWord })
-                g.DrawString(texto, fTexto, cinza, new RectangleF(XTexto - 1, 43, w, 32), fmt);
+                g.DrawString(texto, fTexto, cinza, new RectangleF(XTexto - 1, 35, w, 28), fmt);
 
         // progresso: linha fina com cabeça brilhante
         if (progresso >= 0)
         {
-            float y = altura - 8, x0 = XTexto, wl = largura - XTexto - 46;
+            float y = altura - 7, x0 = XTexto, wl = largura - XTexto - 42;
             using (var trilho = new Pen(Color.FromArgb(35, cor.R, cor.G, cor.B), 1.5f)) g.DrawLine(trilho, x0, y, x0 + wl, y);
             float wp = wl * Math.Clamp(progressoVisivel, 0, 100) / 100f;
             using (var cheio = new Pen(Hud.Alfa(cor, 230), 1.6f)) g.DrawLine(cheio, x0, y, x0 + wp, y);
             using (var cabeca = new SolidBrush(Hud.Alfa(cor, 120))) g.FillEllipse(cabeca, x0 + wp - 4, y - 4, 8, 8);
-            using (var b = new SolidBrush(Hud.Alfa(cor, 230))) g.DrawString($"{(int)Math.Round(progressoVisivel)}%", fCab, b, largura - 40, y - 7);
+            using (var b = new SolidBrush(Hud.Alfa(cor, 230))) g.DrawString($"{(int)Math.Round(progressoVisivel)}%", fCab, b, largura - 36, y - 6);
         }
     }
 

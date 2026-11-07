@@ -87,10 +87,10 @@ internal static class Atualizador
         Log($"Versão {info.TargetFullRelease.Version} baixada");
     }
 
-    public static void AplicarEReiniciar(UpdateInfo info)
+    public static void AplicarEReiniciar(UpdateInfo info, bool naBandeja = false)
     {
-        Log($"Aplicando {info.TargetFullRelease.Version} e reiniciando");
-        Criar().ApplyUpdatesAndRestart(info.TargetFullRelease);
+        Log($"Aplicando {info.TargetFullRelease.Version} e reiniciando" + (naBandeja ? " (na bandeja)" : ""));
+        Criar().ApplyUpdatesAndRestart(info.TargetFullRelease, naBandeja ? new[] { Program.ArgBandeja } : null);
     }
 
     /// <summary>

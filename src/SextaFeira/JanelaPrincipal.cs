@@ -71,8 +71,12 @@ internal class JanelaPrincipal : Form
     private readonly System.Windows.Forms.Timer timerAtualizacao = new() { Interval = 5 * 60 * 1000 };
     private BotaoHud btnAtualizacaoLateral;
 
-    public JanelaPrincipal()
+    private readonly bool comecarNaBandeja;
+
+    public JanelaPrincipal(bool naBandeja = false)
     {
+        comecarNaBandeja = naBandeja;
+        if (naBandeja) Opacity = 0;
         Text = "SEXTA-FEIRA";
         Icon = Tema.Icone;
         BackColor = Tema.Fundo;
@@ -110,6 +114,17 @@ internal class JanelaPrincipal : Form
         timer.Tick += async (_, _) => await AtualizarMonitor();
         Shown += async (_, _) =>
         {
+            if (comecarNaBandeja)
+            {
+                // voltou de uma atualização feita na bandeja: continua escondida
+                Hide();
+                Opacity = 1;
+                bandeja.Visible = true;
+                timerFala.Tick += (_, _) => { if (consoleIa.Livre) consoleIa.Dizer(ProximaFala()); };
+                await Carregar();
+                timer.Stop();
+                return;
+            }
             MostrarBoot();
             string sd = DateTime.Now.Hour < 12 ? "Bom dia" : DateTime.Now.Hour < 18 ? "Boa tarde" : "Boa noite";
             consoleIa.Dizer($"{sd}. Todos os sistemas online.", true);
@@ -136,6 +151,7 @@ internal class JanelaPrincipal : Form
                 timer.Stop();
                 timerFala.Stop();
                 bandeja.Visible = true;
+                if (TentarAtualizarNaBandeja()) return;
                 if (!avisouBandeja)
                 {
                     avisouBandeja = true;
@@ -149,6 +165,25 @@ internal class JanelaPrincipal : Form
             ModoCompetitivo.Desligar();
             RotaInteligente.Encerrar();
         };
+    }
+
+    /// <summary>Na bandeja e sem jogo aberto: aplica a atualização baixada sozinha e volta pra bandeja.</summary>
+    private bool TentarAtualizarNaBandeja()
+    {
+        if (Visible || !atualizacaoBaixada || atualizacao == null) return false;
+        if (Jogos.JogoAberto() != null || RotaInteligente.EmSessao || ModoCompetitivo.Ativo) return false;
+        try
+        {
+            bandeja.Visible = false;
+            Atualizador.AplicarEReiniciar(atualizacao, naBandeja: true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Atualizador.Log("ERRO ao atualizar na bandeja: " + ex.Message);
+            bandeja.Visible = true;
+            return false;
+        }
     }
 
     private NotifyIcon bandeja;
@@ -2733,6 +2768,7 @@ internal class JanelaPrincipal : Form
             btnAtualizacaoLateral.Visible = true;
             btnAtualizacaoLateral.BringToFront();
             ReorganizarMenu();
+            if (TentarAtualizarNaBandeja()) return;
             consoleIa.Dizer($"Versão {nova} baixada. Clica em Atualizar no menu quando quiser.", true);
             AvisoPopup.MostrarSemEsperar("Atualização pronta", $"A versão {nova} da SEXTA-FEIRA já foi baixada. Clica em \"Atualizar\" no menu quando quiser.");
             btnFaixa.Text = "Reiniciar e atualizar";
