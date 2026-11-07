@@ -1,29 +1,50 @@
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Drawing.Text;
+using System.Runtime.InteropServices;
 
 namespace SextaFeira;
 
 /// <summary>
-/// Aviso da SEXTA-FEIRA no canto superior direito, no estilo HUD.
+/// Aviso holográfico da SEXTA-FEIRA no canto superior direito.
+/// Janela com transparência real (dá pra ver a tela por trás), linhas finas brilhando,
+/// "se projeta" abrindo a partir de uma linha de luz e se recolhe do mesmo jeito.
 /// - Modo aviso: título + texto, some sozinho.
-/// - Modo otimização (botão de 1 clique): aparece NA HORA, mostra ao vivo o que está fazendo e termina com o resumo.
-/// Aparece mesmo com o "Não perturbe" ligado e não rouba o foco do jogo.
+/// - Modo otimização (botão de 1 clique): aparece na hora e acompanha ao vivo.
+/// Não rouba o foco do jogo.
 /// </summary>
 internal class AvisoPopup : Form
 {
-    private readonly System.Windows.Forms.Timer anim = new() { Interval = 16 };
-    private int fase;              // 0 = entrando, 1 = parado, 2 = saindo
-    private int msParado;
-    private int tempoNaTela = 4500;
-    private const double OpacidadeMax = 0.96;
-    private const int Margem = 16, Deslize = 28;
-    private int xFinal;
+    // ---------- Win32: janela com transparência por pixel ----------
+    [StructLayout(LayoutKind.Sequential)] private struct PONTO { public int x, y; public PONTO(int x, int y) { this.x = x; this.y = y; } }
+    [StructLayout(LayoutKind.Sequential)] private struct TAMANHO { public int cx, cy; public TAMANHO(int cx, int cy) { this.cx = cx; this.cy = cy; } }
+    [StructLayout(LayoutKind.Sequential, Pack = 1)] private struct BLEND { public byte Op, Flags, Alpha, Format; }
+    [DllImport("user32.dll")] private static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref PONTO pptDst, ref TAMANHO psize, IntPtr hdcSrc, ref PONTO pprSrc, int crKey, ref BLEND pblend, int dwFlags);
+    [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr hDC);
+    [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr hdc);
+    [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr hDC, IntPtr hObject);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr hObject);
 
+    // ---------- estado ----------
+    private readonly System.Windows.Forms.Timer anim = new() { Interval = 16 };
+    private readonly Random rnd = new();
+    private int fase;                 // 0 = projetando, 1 = parado, 2 = recolhendo
+    private float t;                  // 0..1 da entrada/saída
+    private int msParado, tempoNaTela = 4500;
     private string cabecalho = "SEXTA-FEIRA";
     private string titulo, texto;
     private bool erro, trabalhando, concluido;
-    private int progresso = -1;    // -1 = sem barra
-    private float giro, pulso;
-    private float progressoVisivel;
+    private int progresso = -1;
+    private float progressoVisivel, giro, pulso;
+    private int largura = 330, altura = 74;
+    private Point posFinal;
+
+    private readonly Font fCab = new(Hud.FonteForte, 7.5f);
+    private readonly Font fTitulo = new(Hud.FonteForte, 10.5f);
+    private readonly Font fTexto = new(Hud.FonteTexto, 8.5f);
+    private const int XTexto = 66;
 
     private AvisoPopup(string titulo, string texto, bool erro, bool trabalhando)
     {
@@ -32,174 +53,204 @@ internal class AvisoPopup : Form
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        BackColor = Color.FromArgb(7, 12, 22);
-        DoubleBuffered = true;
-        Opacity = 0;
-        Width = 400;
         Ajustar();
-
-        var area = Screen.PrimaryScreen!.WorkingArea;
-        xFinal = area.Right - Width - Margem;
-        Location = new Point(xFinal + Deslize, area.Top + Margem);
-
-        Click += (_, _) => { if (!trabalhando) fase = 2; };
+        MouseClick += (_, _) => { if (!this.trabalhando && fase == 1) fase = 2; };
         anim.Tick += Animar;
-        Shown += (_, _) => anim.Start();
+        Shown += (_, _) => { Desenhar(); anim.Start(); };
     }
-
-    private static Font F(string nome, float t) => new(nome, t);
-    private readonly Font fCab = F(Hud.FonteForte, 8f);
-    private readonly Font fTitulo = F(Hud.FonteForte, 11.5f);
-    private readonly Font fTexto = F(Hud.FonteTexto, 9f);
-
-    private const int XTexto = 84;
 
     private void Ajustar()
     {
-        int larguraTexto = Width - XTexto - 18;
-        int hTitulo = TextRenderer.MeasureText(titulo ?? "", fTitulo, new Size(larguraTexto, 0), TextFormatFlags.WordBreak).Height;
-        int hTexto = string.IsNullOrEmpty(texto) ? 0 : TextRenderer.MeasureText(texto, fTexto, new Size(larguraTexto, 0), TextFormatFlags.WordBreak).Height;
-        int h = 34 + hTitulo + (hTexto > 0 ? 4 + hTexto : 0) + (progresso >= 0 ? 22 : 12);
-        h = Math.Max(h, 86);
-        if (h != Height)
-        {
-            Height = h;
-            try
-            {
-                using var p = Hud.Redondo(new RectangleF(0, 0, Width, Height), 16);
-                Region = new Region(p);
-            }
-            catch { }
-        }
-        Invalidate();
+        int w = largura - XTexto - 16;
+        int hTexto = string.IsNullOrEmpty(texto) ? 0 :
+            Math.Min(34, TextRenderer.MeasureText(texto, fTexto, new Size(w, 0), TextFormatFlags.WordBreak).Height);
+        altura = Math.Max(70, 46 + hTexto + (progresso >= 0 ? 12 : 4));
+        var area = Screen.PrimaryScreen!.WorkingArea;
+        posFinal = new Point(area.Right - largura - 14, area.Top + 14);
+        Bounds = new Rectangle(posFinal, new Size(largura, altura));
     }
+
+    private static float Suave(float x) => 1 - (float)Math.Pow(1 - Math.Clamp(x, 0, 1), 3);
 
     private void Animar(object sender, EventArgs e)
     {
-        giro = (giro + (trabalhando ? 9f : 2.5f)) % 360;
-        pulso += 0.12f;
-        if (progresso >= 0) progressoVisivel += (progresso - progressoVisivel) * 0.18f;
+        giro = (giro + (trabalhando ? 7f : 1.8f)) % 360;
+        pulso += 0.09f;
+        if (progresso >= 0) progressoVisivel += (progresso - progressoVisivel) * 0.15f;
         switch (fase)
         {
             case 0:
-                Opacity = Math.Min(OpacidadeMax, Opacity + 0.08);
-                Left = Math.Max(xFinal, Left - 4);
-                if (Opacity >= OpacidadeMax && Left == xFinal) fase = 1;
+                t = Math.Min(1, t + 0.05f);
+                if (t >= 1) fase = 1;
                 break;
             case 1:
-                if (!trabalhando)
-                {
-                    msParado += anim.Interval;
-                    if (msParado >= tempoNaTela) fase = 2;
-                }
+                if (!trabalhando && (msParado += anim.Interval) >= tempoNaTela) fase = 2;
                 break;
             default:
-                Opacity = Math.Max(0, Opacity - 0.06);
-                if (Opacity <= 0) { anim.Stop(); Close(); return; }
+                t = Math.Max(0, t - 0.06f);
+                if (t <= 0) { anim.Stop(); Close(); return; }
                 break;
         }
-        Invalidate();
+        Desenhar();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    // ---------- desenho ----------
+    private void Desenhar()
     {
-        var g = e.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        var cor = erro ? Tema.Vermelho : concluido ? Color.FromArgb(70, 230, 200) : Hud.Ciano;
-        var r = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        if (!IsHandleCreated) return;
+        using var bmp = new Bitmap(largura, altura, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            g.Clear(Color.Transparent);
 
-        // fundo de vidro escuro com brilho em cima
-        using (var caminho = Hud.Redondo(r, 16))
-        {
-            using var fundo = new LinearGradientBrush(r, Color.FromArgb(14, 24, 42), Color.FromArgb(6, 10, 19), 90f);
-            g.FillPath(fundo, caminho);
-            using var borda = new Pen(Hud.Alfa(cor, 120), 1.2f);
-            g.DrawPath(borda, caminho);
-        }
-        using (var reflexo = new LinearGradientBrush(new RectangleF(20, 0, Width - 40, 2), Color.Transparent, Color.Transparent, 0f))
-        {
-            reflexo.InterpolationColors = new ColorBlend
+            // "projeção": abre na vertical a partir do meio
+            float abre = Suave(fase == 2 ? t : t * 1.15f);
+            float hVis = Math.Max(2, altura * abre);
+            float y0 = (altura - hVis) / 2f;
+            g.SetClip(new RectangleF(0, y0, largura, hVis));
+            DesenharConteudo(g);
+            g.ResetClip();
+            if (abre < 0.98f)
             {
-                Colors = new[] { Color.Transparent, Hud.Alfa(cor, 220), Color.Transparent },
-                Positions = new[] { 0f, 0.5f, 1f }
-            };
-            g.FillRectangle(reflexo, 20, 1, Width - 40, 1.5f);
-        }
-
-        // núcleo animado à esquerda
-        float cx = 42, cy = Math.Min(Height / 2f, 48), raio = 24;
-        using (var aura = new GraphicsPath())
-        {
-            aura.AddEllipse(cx - raio - 8, cy - raio - 8, (raio + 8) * 2, (raio + 8) * 2);
-            using var br = new PathGradientBrush(aura)
-            {
-                CenterColor = Hud.Alfa(cor, (int)(55 + 25 * Math.Sin(pulso))),
-                SurroundColors = new[] { Color.Transparent }
-            };
-            g.FillPath(br, aura);
-        }
-        using (var trilho = new Pen(Hud.Alfa(cor, 40), 3)) g.DrawEllipse(trilho, cx - raio, cy - raio, raio * 2, raio * 2);
-        using (var arco = new Pen(cor, 3) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-        {
-            if (concluido) g.DrawEllipse(arco, cx - raio, cy - raio, raio * 2, raio * 2);
-            else
-            {
-                g.DrawArc(arco, cx - raio, cy - raio, raio * 2, raio * 2, giro, 100);
-                g.DrawArc(arco, cx - raio, cy - raio, raio * 2, raio * 2, giro + 180, 100);
+                // linha de luz que "projeta" o painel
+                float lw = largura * Math.Min(1, abre * 3 + 0.2f);
+                float lx = (largura - lw) / 2;
+                using var luz = new LinearGradientBrush(new RectangleF(lx, 0, lw, 2), Color.Transparent, Color.Transparent, 0f)
+                {
+                    InterpolationColors = new ColorBlend
+                    {
+                        Colors = new[] { Color.Transparent, Color.FromArgb(230, 180, 245, 255), Color.Transparent },
+                        Positions = new[] { 0f, 0.5f, 1f }
+                    }
+                };
+                g.FillRectangle(luz, lx, y0 - 1, lw, 2);
+                g.FillRectangle(luz, lx, y0 + hVis - 1, lw, 2);
             }
         }
-        float r2 = raio - 7;
-        using (var interno = new Pen(Hud.Alfa(Hud.CianoClaro, 160), 1.5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-            g.DrawArc(interno, cx - r2, cy - r2, r2 * 2, r2 * 2, -giro * 1.4f, 220);
-        // símbolo no meio: raio (trabalhando), ✓ (pronto) ou ! (erro)
-        using (var simbolo = new SolidBrush(Color.White))
-        using (var linha = new Pen(Color.White, 2.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+
+        // tremidinha de holograma só durante a projeção
+        byte alfa = (byte)Math.Clamp((fase == 0 && t < 0.6f ? (rnd.Next(70, 100) / 100f) : 1f) * Math.Min(1f, t * 1.6f) * 255, 0, 255);
+        Aplicar(bmp, alfa);
+    }
+
+    private void DesenharConteudo(Graphics g)
+    {
+        var cor = erro ? Color.FromArgb(255, 95, 95) : concluido ? Color.FromArgb(80, 240, 210) : Color.FromArgb(0, 214, 255);
+        var r = new RectangleF(0.5f, 0.5f, largura - 1.5f, altura - 1.5f);
+
+        // vidro quase transparente, mais forte na esquerda
+        using (var caminho = Hud.Redondo(r, 10))
         {
-            if (erro) { g.DrawLine(linha, cx, cy - 8, cx, cy + 2); g.FillEllipse(simbolo, cx - 1.8f, cy + 6, 3.6f, 3.6f); }
-            else if (concluido) g.DrawLines(linha, new[] { new PointF(cx - 7, cy), new PointF(cx - 2, cy + 5), new PointF(cx + 8, cy - 6) });
+            using (var fundo = new LinearGradientBrush(r, Color.FromArgb(150, 4, 18, 30), Color.FromArgb(70, 4, 18, 30), 0f))
+                g.FillPath(fundo, caminho);
+            using (var borda = new Pen(Hud.Alfa(cor, 70), 1f)) g.DrawPath(borda, caminho);
+        }
+        // linhas de varredura bem fracas
+        using (var scan = new Pen(Color.FromArgb(12, cor.R, cor.G, cor.B)))
+            for (int y = 3; y < altura; y += 3) g.DrawLine(scan, 6, y, largura - 6, y);
+        // cantoneiras
+        using (var canto = new Pen(Hud.Alfa(cor, 220), 1.6f))
+        {
+            float c = 10, w = largura - 1.5f, h = altura - 1.5f;
+            g.DrawLine(canto, 1, c + 4, 1, 4); g.DrawLine(canto, 4, 1, c + 4, 1);
+            g.DrawLine(canto, w, h - c - 4, w, h - 4); g.DrawLine(canto, w - 4, h, w - c - 4, h);
+        }
+        // reflexo no topo
+        using (var reflexo = new LinearGradientBrush(new RectangleF(20, 0, largura - 40, 1), Color.Transparent, Color.Transparent, 0f)
+        {
+            InterpolationColors = new ColorBlend { Colors = new[] { Color.Transparent, Hud.Alfa(cor, 200), Color.Transparent }, Positions = new[] { 0f, 0.4f, 1f } }
+        })
+            g.FillRectangle(reflexo, 20, 0.5f, largura - 40, 1f);
+
+        // núcleo
+        float cx = 34, cy = Math.Min(altura / 2f, 38), raio = 19;
+        using (var aura = new GraphicsPath())
+        {
+            aura.AddEllipse(cx - raio - 10, cy - raio - 10, (raio + 10) * 2, (raio + 10) * 2);
+            using var br = new PathGradientBrush(aura) { CenterColor = Hud.Alfa(cor, (int)(70 + 30 * Math.Sin(pulso))), SurroundColors = new[] { Color.Transparent } };
+            g.FillPath(br, aura);
+        }
+        using (var trilho = new Pen(Hud.Alfa(cor, 45), 1.2f)) g.DrawEllipse(trilho, cx - raio, cy - raio, raio * 2, raio * 2);
+        using (var arco = new Pen(Hud.Alfa(cor, 240), 2.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+        {
+            if (concluido) g.DrawEllipse(arco, cx - raio, cy - raio, raio * 2, raio * 2);
+            else for (int k = 0; k < 3; k++) g.DrawArc(arco, cx - raio, cy - raio, raio * 2, raio * 2, giro + k * 120, 70);
+        }
+        float r2 = raio - 6;
+        using (var interno = new Pen(Hud.Alfa(Color.FromArgb(160, 240, 255), 150), 1f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            g.DrawArc(interno, cx - r2, cy - r2, r2 * 2, r2 * 2, -giro * 1.5f, 230);
+        using (var traco = new Pen(Color.FromArgb(240, 250, 255), 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+        using (var simbolo = new SolidBrush(Color.FromArgb(245, 252, 255)))
+        {
+            if (erro) { g.DrawLine(traco, cx, cy - 6, cx, cy + 1); g.FillEllipse(simbolo, cx - 1.4f, cy + 4, 2.8f, 2.8f); }
+            else if (concluido) g.DrawLines(traco, new[] { new PointF(cx - 5, cy), new PointF(cx - 1.5f, cy + 3.5f), new PointF(cx + 6, cy - 4.5f) });
             else g.FillPolygon(simbolo, new[]
             {
-                new PointF(cx + 2, cy - 11), new PointF(cx - 6, cy + 1), new PointF(cx - 1, cy + 1),
-                new PointF(cx - 3, cy + 11), new PointF(cx + 6, cy - 2), new PointF(cx + 1, cy - 2)
+                new PointF(cx + 1.5f, cy - 8), new PointF(cx - 4.5f, cy + 1), new PointF(cx - 0.8f, cy + 1),
+                new PointF(cx - 2.2f, cy + 8), new PointF(cx + 4.5f, cy - 1.5f), new PointF(cx + 0.8f, cy - 1.5f)
             });
         }
 
-        // textos
-        int larguraTexto = Width - XTexto - 18;
-        TextRenderer.DrawText(g, cabecalho, fCab, new Point(XTexto, 13), Hud.Alfa(cor, 255), TextFormatFlags.NoPadding);
-        var rt = new Rectangle(XTexto, 30, larguraTexto, Height);
-        TextRenderer.DrawText(g, titulo, fTitulo, rt, Color.White, TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
-        int hTitulo = TextRenderer.MeasureText(titulo ?? "", fTitulo, new Size(larguraTexto, 0), TextFormatFlags.WordBreak).Height;
+        // textos (com um brilho leve atrás do título)
+        using (var b = new SolidBrush(Hud.Alfa(cor, 210))) g.DrawString(cabecalho, fCab, b, XTexto - 1, 9);
+        int w = largura - XTexto - 14;
+        using (var brilho = new SolidBrush(Hud.Alfa(cor, 45)))
+        using (var branco = new SolidBrush(Color.FromArgb(240, 235, 250, 255)))
+        using (var fmt = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
+        {
+            var rt = new RectangleF(XTexto - 1, 23, w, 20);
+            g.DrawString(titulo, fTitulo, brilho, new RectangleF(rt.X + 0.8f, rt.Y + 0.8f, rt.Width, rt.Height), fmt);
+            g.DrawString(titulo, fTitulo, branco, rt, fmt);
+        }
         if (!string.IsNullOrEmpty(texto))
-            TextRenderer.DrawText(g, texto, fTexto, new Rectangle(XTexto, 34 + hTitulo, larguraTexto, Height),
-                Color.FromArgb(160, 180, 205), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+            using (var cinza = new SolidBrush(Color.FromArgb(200, 165, 205, 225)))
+            using (var fmt = new StringFormat { Trimming = StringTrimming.EllipsisWord })
+                g.DrawString(texto, fTexto, cinza, new RectangleF(XTexto - 1, 43, w, 32), fmt);
 
-        // barra de progresso
+        // progresso: linha fina com cabeça brilhante
         if (progresso >= 0)
         {
-            float y = Height - 14, x0 = XTexto, w = Width - XTexto - 52;
-            using (var trilho = Hud.Redondo(new RectangleF(x0, y, w, 4), 2))
-            using (var b = new SolidBrush(Color.FromArgb(28, 255, 255, 255)))
-                g.FillPath(b, trilho);
-            float wp = Math.Max(4, w * Math.Clamp(progressoVisivel, 0, 100) / 100f);
-            using (var cheio = Hud.Redondo(new RectangleF(x0, y, wp, 4), 2))
-            using (var b = new LinearGradientBrush(new RectangleF(x0, y, w, 4), Hud.Alfa(cor, 160), cor, 0f))
-                g.FillPath(b, cheio);
-            using (var brilho = new SolidBrush(Hud.Alfa(cor, 90))) g.FillEllipse(brilho, x0 + wp - 5, y - 3, 10, 10);
-            TextRenderer.DrawText(g, $"{(int)Math.Round(progressoVisivel)}%", fCab, new Point(Width - 44, (int)y - 6), Hud.Alfa(cor, 255), TextFormatFlags.NoPadding);
+            float y = altura - 8, x0 = XTexto, wl = largura - XTexto - 46;
+            using (var trilho = new Pen(Color.FromArgb(35, cor.R, cor.G, cor.B), 1.5f)) g.DrawLine(trilho, x0, y, x0 + wl, y);
+            float wp = wl * Math.Clamp(progressoVisivel, 0, 100) / 100f;
+            using (var cheio = new Pen(Hud.Alfa(cor, 230), 1.6f)) g.DrawLine(cheio, x0, y, x0 + wp, y);
+            using (var cabeca = new SolidBrush(Hud.Alfa(cor, 120))) g.FillEllipse(cabeca, x0 + wp - 4, y - 4, 8, 8);
+            using (var b = new SolidBrush(Hud.Alfa(cor, 230))) g.DrawString($"{(int)Math.Round(progressoVisivel)}%", fCab, b, largura - 40, y - 7);
         }
     }
 
-    // Não rouba o foco do jogo
+    private void Aplicar(Bitmap bmp, byte alfa)
+    {
+        IntPtr tela = GetDC(IntPtr.Zero), mem = CreateCompatibleDC(tela), hbmp = IntPtr.Zero, antigo = IntPtr.Zero;
+        try
+        {
+            hbmp = bmp.GetHbitmap(Color.FromArgb(0));
+            antigo = SelectObject(mem, hbmp);
+            var tam = new TAMANHO(bmp.Width, bmp.Height);
+            var origem = new PONTO(0, 0);
+            var destino = new PONTO(posFinal.X, posFinal.Y);
+            var blend = new BLEND { Op = 0, Flags = 0, Alpha = alfa, Format = 1 };
+            UpdateLayeredWindow(Handle, tela, ref destino, ref tam, mem, ref origem, 0, ref blend, 2);
+        }
+        finally
+        {
+            ReleaseDC(IntPtr.Zero, tela);
+            if (hbmp != IntPtr.Zero) { SelectObject(mem, antigo); DeleteObject(hbmp); }
+            DeleteDC(mem);
+        }
+    }
+
     protected override bool ShowWithoutActivation => true;
 
     protected override CreateParams CreateParams
     {
         get
         {
-            const int WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOPMOST = 0x8;
+            const int WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOPMOST = 0x8, WS_EX_LAYERED = 0x80000;
             var cp = base.CreateParams;
-            cp.ExStyle |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
+            cp.ExStyle |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_LAYERED;
             return cp;
         }
     }
@@ -227,10 +278,7 @@ internal class AvisoPopup : Form
         Application.Run(aviso);
     }
 
-    /// <summary>
-    /// Botão de 1 clique: o aviso aparece na hora, acompanha a otimização ao vivo e termina com o resumo.
-    /// Devolve o resultado (ou null se deu erro).
-    /// </summary>
+    /// <summary>Botão de 1 clique: aparece na hora, acompanha a otimização ao vivo e termina com o resumo.</summary>
     public static Otimizador.Resultado OtimizarComProgresso()
     {
         Otimizador.Resultado resultado = null;
@@ -243,18 +291,9 @@ internal class AvisoPopup : Form
             {
                 resultado = await Task.Run(() => Otimizador.Executar((pct, txt) =>
                 {
-                    try
-                    {
-                        aviso.BeginInvoke(new Action(() =>
-                        {
-                            aviso.progresso = pct;
-                            aviso.texto = txt;
-                            aviso.Ajustar();
-                        }));
-                    }
-                    catch { }
+                    try { aviso.BeginInvoke(new Action(() => { aviso.progresso = pct; aviso.texto = txt; })); } catch { }
                 }));
-                aviso.progresso = 100;
+                aviso.progresso = -1;
                 aviso.trabalhando = false;
                 aviso.concluido = true;
                 aviso.titulo = Falas.Fim(resultado);
