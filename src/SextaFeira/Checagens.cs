@@ -126,6 +126,58 @@ internal static class Checagens
             });
         }
 
+        // ---------- Ladrões de FPS ----------
+        var gravadores = LadroesFps.GravadoresAbertos();
+        l.Add(new Checagem
+        {
+            Nome = "Ladrões de FPS (gravadores e papel de parede animado)",
+            Status = gravadores.Count > 0 ? Status.Alerta : Status.Ok,
+            Detalhe = gravadores.Count > 0
+                ? "Abertos agora: " + string.Join(", ", gravadores.Select(g => g.nome)) + ". Eles usam a placa de vídeo junto com o jogo e tiram FPS."
+                : "Nenhum gravador de clipe ou papel de parede animado aberto",
+            Botao = gravadores.Count > 0 ? "Fechar" : null,
+            Automatica = gravadores.Count > 0,
+            Acao = () =>
+            {
+                LadroesFps.FecharEIncluir(gravadores);
+                return "Fechados. Os gravadores entraram na lista do OTIMIZAR: ele fecha eles sozinho das próximas vezes.";
+            }
+        });
+
+        if (LadroesFps.TemDiscord)
+        {
+            bool acelDiscord = LadroesFps.DiscordAceleracaoLigada();
+            l.Add(new Checagem
+            {
+                Nome = "Discord: aceleração de hardware",
+                Status = acelDiscord ? Status.Alerta : Status.Ok,
+                Detalhe = acelDiscord
+                    ? "Ligada: o Discord desenha a janela dele com a placa de vídeo, disputando com o jogo. Desligar tira esse peso (o Discord reinicia)."
+                    : "Desligada",
+                Botao = acelDiscord ? "Desligar" : null,
+                Acao = () => LadroesFps.DesligarAceleracaoDiscord()
+            });
+        }
+
+        if (LadroesFps.OverlayNvidiaAberto())
+            l.Add(new Checagem
+            {
+                Nome = "Overlay da NVIDIA (gravação e filtros)",
+                Status = Status.Info,
+                Detalhe = "Ligado. Se tu não usa a gravação (Instant Replay) nem os filtros, desliga: aperta Alt+Z → Configurações → Overlay do jogo: desligado. O Instant Replay grava o tempo todo e tira FPS.",
+            });
+
+        if (pc.DriverNvidia != null)
+            l.Add(new Checagem
+            {
+                Nome = "Painel NVIDIA: modo de energia e cache",
+                Status = Status.Info,
+                Detalhe = "Em Gerenciar as configurações 3D: Modo de gerenciamento de energia → Preferir desempenho máximo (menos travadinha); " +
+                          "Tamanho do cache de sombreador → 10 GB (menos engasgo quando o jogo carrega efeitos). O resto pode ficar no padrão.",
+                Botao = "Abrir painel",
+                Acao = () => { LadroesFps.AbrirPainelNvidia(); return null; }
+            });
+
         // ---------- Latência e consistência ----------
         bool acel = Ajustes.AceleracaoMouseLigada();
         l.Add(new Checagem
